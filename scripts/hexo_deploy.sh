@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e 
 
-:'EOF'
+:<<'EOF'
     Well, this script is too short and easy.
     But I am lazy, so it born.
     If you use hexo too, you can try this script.
