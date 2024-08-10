@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-:'EOF'
+:<<'EOF'
     This script is using to auto boot tmux when you login shell. 
     I am lazy, so it boom.
     If you use tmux and lazy too, you can try.
