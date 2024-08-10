@@ -15,4 +15,4 @@ test -n "$TMUX" && { echo "Already in tmux."; exit; }
 
 test $(type -P tmux) && { session=$(tmux ls | awk -F: 'NR==1 {print $1}'); } 2> /dev/null
 
-test -n "$session" && tmux attach -t $session
+test -n "$session" && tmux attach -t $session || tmux
