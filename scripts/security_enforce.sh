@@ -16,12 +16,12 @@ FLAG_C=1
 FLAG_P=1
 FLAG_H=1
 
-DATE=
+DATE=`date "+%s"`
 
 USERNAME="guest"
 
 function pwd_conf {
-	sed -i.bak -e 's/# minlen = 9/minlen = 8/g;
+	sed -i.bak_$DATE -e 's/# minlen = 9/minlen = 8/g;
 				   s/# dcredit = 1/dcredit = -1/g;
 				   s/# ucredit = 1/ucredit = -1/g;
 				   s/# lcredit = 1/lcredit = -1/g;
@@ -49,7 +49,7 @@ function add_sudo {
 		return
 	}
 
-	sed -i.bak '/^root.*ALL$/a '$USERNAME' ALL=(ALL)  NOPASSWD:ALL' /etc/sudoers
+	sed -i.bak_$DATE '/^root.*ALL$/a '$USERNAME' ALL=(ALL)  NOPASSWD:ALL' /etc/sudoers
 
 	echo -e "$OK Change sudoers success"
 
@@ -57,7 +57,7 @@ function add_sudo {
 
 function ssh_conf {
 	# sed -i 's/#PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
-	sed -i.bak 's/PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
+	sed -i.bak_$DATE 's/PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
 	# sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/g' /etc/ssh/sshd_config
 	# sed -i '/# Example of overriding settings/a AllowUsers guest@$IPADDR/24' /etc/ssh/sshd_config
 	service sshd restart
@@ -71,12 +71,12 @@ function login_lock {
 		return
 	}
 
-	sed -i.bak '1a auth       required     pam_tally2.so deny=3 unlock_time=300 even_deny_root root_unlock_time=300' /etc/pam.d/sshd
+	sed -i.bak_$DATE '1a auth       required     pam_tally2.so deny=3 unlock_time=300 even_deny_root root_unlock_time=300' /etc/pam.d/sshd
 }
 
 function set_history {
 	####
-	test "$(grep -E "^HIST.*=(1000|2000)$" /etc/profile)" && sed -i.bak "s/^HISTSIZE=1000/HISTSIZE=3000/g" /etc/profile
+	test "$(grep -E "^HIST.*=(1000|2000)$" /etc/profile)" && sed -i.bak_$DATE "s/^HISTSIZE=1000/HISTSIZE=3000/g" /etc/profile
 
 
 	test "$(grep "add_history" /etc/profile)" && echo -e "${ERROR} History setting has exist" >&2 && return
@@ -184,7 +184,7 @@ function check_port {
 function firewalld_cmd {
 	backupconfig "$HOME/firewalld.tar.gz" "/etc/firewalld"
 
-	check_port
+	
 
 	test ${#TCPPORTS} -lt 1 && echo -e "$ERROR No listening TCP Ports...." >&2 || add_ports "tcp" "${TCPPORTS[@]}"
 	test ${#UDPPORTS} -lt 1 && echo -e "$ERROR No listening UDP Ports...." >&2 && return || add_ports "udp" "${UDPPORTS[@]}"
@@ -195,10 +195,29 @@ function firewalld_cmd {
 
 ## temporarily unavailable
 function iptables_cmd {
+	test ! -d /etc/iptables && mkdir /etc/iptables
+
+	iptables-save > /etc/iptables/rules.v4.bak_$DATE
+
 	backupconfig "$HOME/iptables.tar.gz" "/etc/sysconfig/iptables /etc/sysconfig/ip*tables-config"
+
+	if test ${#TCPPORTS} -ge 1
+	then
+		for i in ${TCPPORTS[@]}; do
+			iptables -I INPUT -p tcp --dport $i -m state --state NEW,ESTABLISHED -j ACCEPT
+		done
+	fi
+
+	if test ${#UDPPORTS} -ge 1
+	then
+		for i in ${UDPPORTS[@]}; do
+			iptables -I INPUT -p udp --dport $i -j ACCEPT
+		done
+	fi
 }
 
 function check_firewall {
+	check_port
 
 	test $(type -P firewall-cmd) && {
 		echo -e "$CHECK$FONT Firewalld Install$BACK$OK \n"
