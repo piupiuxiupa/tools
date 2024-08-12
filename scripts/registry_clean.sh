@@ -135,6 +135,7 @@ function push_image {
     # wait `jobs -rp`
     echo "Image push start"
     wait_jobs
+    sleep 3
     echo "Image push successfully !"
 }
 
@@ -242,8 +243,9 @@ ${0##*/} is a registry clean script.
         -h             help.
         -f             stdout file path, default is registry.json.
         -p             password.
-        -r             registry url.
-        -x             registry path.
+        -r             registry url. Don't add / in the end of url, like https://127.0.0.1/.
+        -x             registry path. Don't add / in the end of registry path.
+
     Example:
         [1] Backup one latest version image, and delete all images in registry.
 
@@ -303,3 +305,13 @@ main(){
 }
 main "$@"
 exit
+
+:<<'EOF'
+Maybe you can see this script options module not to use the getopt or getopts,
+because these tools both have some imperfections. They cannot complete my
+requirements. So I write options module by myself.
+Example, getopts not support long options and not permit to connect usage options, 
+but getopt not support short options with blank when an option is optional, etc.
+Both of these tools are anti habits of human. 
+Well, maybe just I don't like it.
+EOF
