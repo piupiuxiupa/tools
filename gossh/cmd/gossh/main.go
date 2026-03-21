@@ -65,9 +65,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s --hosts 192.168.1.1,192.168.1.2 \"ls -la\"    # 在配置中指定主机执行\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -l                                            # 列出所有配置的服务器\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n模式2 - 直接连接（无需配置文件）:\n")
-		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root -p \"xxx\" \"uptime\"            # 密码执行命令\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root \"uptime\"                      # 自动使用 ~/.ssh/id_rsa 密钥\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root -p \"xxx\" \"uptime\"            # 使用密码执行命令\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root \"uptime\"                     # 交互式输入密码\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root --key ~/.ssh/id_rsa \"df -h\"    # 密钥执行命令\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root --key ~/.ssh/id_rsa \"df -h\"    # 指定密钥执行命令\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -P 2222 -u admin -p \"xxx\" \"whoami\"   # 指定端口\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -h localhost \"whoami\"                                 # 本地执行，无需认证\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n模式3 - 文件传输（直接连接模式）:\n")
@@ -227,20 +228,39 @@ func handleLocalMode(args []string, put, get, script *string, formatter *output.
 	fmt.Print(formatter.FormatResults([]ssh.Result{*result}))
 }
 
+func getDefaultSSHKey() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return home + "/.ssh/id_rsa"
+}
+
 func handleDirectMode(host *string, port *int, user, password, privateKey, keyPass *string, timeout *int, args []string, put, get, script *string, formatter *output.Formatter) {
 	if *user == "" {
 		fmt.Fprintf(os.Stderr, "错误: 必须指定用户名 (-u/--user)\n")
 		os.Exit(1)
 	}
 
-	if *privateKey == "" {
-		if *password == "" {
-			var err error
-			*password, err = readPassword("请输入密码: ")
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "错误: 读取密码失败: %v\n", err)
-				os.Exit(1)
+	useDefaultKey := false
+	defaultKey := getDefaultSSHKey()
+
+	if *privateKey == "" && *password == "" {
+		if defaultKey != "" {
+			if _, err := os.Stat(defaultKey); err == nil {
+				*privateKey = defaultKey
+				useDefaultKey = true
+				formatter.PrintQuiet("使用默认密钥: %s\n", defaultKey)
 			}
+		}
+	}
+
+	if *privateKey == "" && *password == "" {
+		var err error
+		*password, err = readPassword("请输入密码: ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "错误: 读取密码失败: %v\n", err)
+			os.Exit(1)
 		}
 		if *password == "" {
 			fmt.Fprintf(os.Stderr, "错误: 密码不能为空\n")
@@ -267,6 +287,20 @@ func handleDirectMode(host *string, port *int, user, password, privateKey, keyPa
 			Error:   err.Error(),
 		}
 		fmt.Print(formatter.FormatResults([]ssh.Result{*result}))
+
+		if useDefaultKey {
+			fmt.Fprintf(os.Stderr, "\n提示: 使用默认密钥 '%s' 连接失败\n", defaultKey)
+			fmt.Fprintf(os.Stderr, "可能的原因:\n")
+			fmt.Fprintf(os.Stderr, "  1. 密钥文件不存在或路径不正确\n")
+			fmt.Fprintf(os.Stderr, "  2. 密钥文件权限不正确（应为 600）\n")
+			fmt.Fprintf(os.Stderr, "  3. 服务器上没有配置该密钥对应的公钥\n")
+			fmt.Fprintf(os.Stderr, "  4. 密钥需要密码保护但未提供\n")
+			fmt.Fprintf(os.Stderr, "\n建议:\n")
+			fmt.Fprintf(os.Stderr, "  - 使用 --key 指定其他密钥文件路径\n")
+			fmt.Fprintf(os.Stderr, "  - 使用 -p/--password 使用密码认证\n")
+			fmt.Fprintf(os.Stderr, "  - 检查服务器上的 ~/.ssh/authorized_keys 是否包含正确公钥\n")
+		}
+
 		os.Exit(1)
 	}
 	defer client.Close()
