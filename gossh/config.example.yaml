@@ -2,29 +2,38 @@ global:
   port: 22
   timeout: 10
   concurrency: 10
+  # 全局认证配置（可选）- 所有服务器会继承这些值，除非在服务器级别被覆盖
+  user: root
+  password: "global-password"
+  private_key: "~/.ssh/id_rsa"
+  private_key_passphrase: ""
 
 groups:
   web:
+    # 继承全局的 user 和 private_key，只覆盖特定字段
     - host: 192.168.1.10
       port: 22
-      user: admin
-      password: "your-password"
     - host: 192.168.1.11
+      # 覆盖全局 user
       user: admin
-      private_key: "~/.ssh/id_rsa"
+      # 覆盖全局 password
+      password: "admin-password"
   
   db:
+    # 继承全局的 user 和 password
     - host: 192.168.1.20
-      user: root
-      password: "db-password"
     - host: 192.168.1.21
-      user: root
-      password: "db-password"
 
 servers:
+  # 继承全局所有认证配置
   - host: 192.168.1.100
-    user: ubuntu
-    private_key: "~/.ssh/id_rsa"
     tags:
       - production
       - monitoring
+  
+  # 覆盖所有全局认证配置
+  - host: 192.168.1.101
+    user: ubuntu
+    private_key: "~/.ssh/ubuntu_key"
+    tags:
+      - production

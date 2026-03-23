@@ -10,9 +10,13 @@ import (
 )
 
 type GlobalConfig struct {
-	Port        int `yaml:"port"`
-	Timeout     int `yaml:"timeout"`
-	Concurrency int `yaml:"concurrency"`
+	Port                 int    `yaml:"port"`
+	Timeout              int    `yaml:"timeout"`
+	Concurrency          int    `yaml:"concurrency"`
+	User                 string `yaml:"user"`
+	Password             string `yaml:"password"`
+	PrivateKey           string `yaml:"private_key"`
+	PrivateKeyPassphrase string `yaml:"private_key_passphrase"`
 }
 
 type ServerConfig struct {
@@ -73,6 +77,31 @@ func (c *Config) GetDefaultPort() int {
 	return c.Global.Port
 }
 
+func (c *Config) GetGlobalUser() string {
+	return c.Global.User
+}
+
+func (c *Config) GetGlobalPassword() string {
+	return c.Global.Password
+}
+
+func (c *Config) GetGlobalPrivateKey() string {
+	if c.Global.PrivateKey == "" {
+		return ""
+	}
+
+	keyPath := c.Global.PrivateKey
+	if strings.HasPrefix(keyPath, "~/") {
+		home, _ := os.UserHomeDir()
+		keyPath = filepath.Join(home, keyPath[2:])
+	}
+	return keyPath
+}
+
+func (c *Config) GetGlobalPrivateKeyPassphrase() string {
+	return c.Global.PrivateKeyPassphrase
+}
+
 func (c *Config) GetAllServers() []ServerConfig {
 	var all []ServerConfig
 
@@ -95,6 +124,26 @@ func (c *Config) GetServersByTags(tags []string) []ServerConfig {
 
 	for _, server := range allServers {
 		if server.HasAnyTag(tags) {
+			result = append(result, server)
+		}
+	}
+
+	return result
+}
+
+func (c *Config) FilterExcludedHosts(servers []ServerConfig, excludeHosts []string) []ServerConfig {
+	if len(excludeHosts) == 0 {
+		return servers
+	}
+
+	excludeMap := make(map[string]bool)
+	for _, h := range excludeHosts {
+		excludeMap[strings.TrimSpace(h)] = true
+	}
+
+	var result []ServerConfig
+	for _, server := range servers {
+		if !excludeMap[server.Host] {
 			result = append(result, server)
 		}
 	}
@@ -131,11 +180,27 @@ func LoadConfig(path string) (*Config, error) {
 
 func (c *Config) applyDefaults() {
 	defaultPort := c.GetDefaultPort()
+	globalUser := c.GetGlobalUser()
+	globalPassword := c.GetGlobalPassword()
+	globalPrivateKey := c.GetGlobalPrivateKey()
+	globalKeyPassphrase := c.GetGlobalPrivateKeyPassphrase()
 
 	for groupName := range c.Groups {
 		for i := range c.Groups[groupName] {
 			if c.Groups[groupName][i].Port == 0 {
 				c.Groups[groupName][i].Port = defaultPort
+			}
+			if c.Groups[groupName][i].User == "" {
+				c.Groups[groupName][i].User = globalUser
+			}
+			if c.Groups[groupName][i].Password == "" {
+				c.Groups[groupName][i].Password = globalPassword
+			}
+			if c.Groups[groupName][i].PrivateKey == "" {
+				c.Groups[groupName][i].PrivateKey = globalPrivateKey
+			}
+			if c.Groups[groupName][i].PrivateKeyPassphrase == "" {
+				c.Groups[groupName][i].PrivateKeyPassphrase = globalKeyPassphrase
 			}
 		}
 	}
@@ -143,6 +208,18 @@ func (c *Config) applyDefaults() {
 	for i := range c.Servers {
 		if c.Servers[i].Port == 0 {
 			c.Servers[i].Port = defaultPort
+		}
+		if c.Servers[i].User == "" {
+			c.Servers[i].User = globalUser
+		}
+		if c.Servers[i].Password == "" {
+			c.Servers[i].Password = globalPassword
+		}
+		if c.Servers[i].PrivateKey == "" {
+			c.Servers[i].PrivateKey = globalPrivateKey
+		}
+		if c.Servers[i].PrivateKeyPassphrase == "" {
+			c.Servers[i].PrivateKeyPassphrase = globalKeyPassphrase
 		}
 	}
 }

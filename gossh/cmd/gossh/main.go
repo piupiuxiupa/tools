@@ -38,6 +38,7 @@ func main() {
 		group      = pflag.StringP("group", "g", "", "执行命令的服务器组")
 		tags       = pflag.StringP("tags", "t", "", "按标签筛选服务器（逗号分隔）")
 		hosts      = pflag.String("hosts", "", "指定配置中的主机（逗号分隔）")
+		exclude    = pflag.StringP("exclude", "e", "", "排除指定主机（逗号分隔）")
 		verbose    = pflag.BoolP("verbose", "v", false, "显示详细输出")
 		list       = pflag.BoolP("list", "l", false, "列出所有服务器")
 		quiet      = pflag.BoolP("quiet", "q", false, "静默模式，只显示简短状态")
@@ -59,11 +60,13 @@ func main() {
 	pflag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "用法: %s [选项] [命令]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "模式1 - 使用配置文件:\n")
-		fmt.Fprintf(os.Stderr, "  %s -c config.yaml \"uptime\"                    # 在所有服务器上执行uptime\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -g web \"systemctl status nginx\"             # 在web组执行命令\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -t production \"df -h\"                       # 在production标签的服务器执行\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s --hosts 192.168.1.1,192.168.1.2 \"ls -la\"    # 在配置中指定主机执行\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -l                                            # 列出所有配置的服务器\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -c config.yaml \"uptime\"                       # 在所有服务器上执行uptime\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -g web \"systemctl status nginx\"                # 在web组执行命令\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -t production \"df -h\"                          # 在production标签的服务器执行\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --hosts 192.168.1.1,192.168.1.2 \"ls -la\"       # 在配置中指定主机执行\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -g web \"uptime\" -e 192.168.1.10                # 在web组执行但排除指定主机\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s \"df -h\" --exclude 192.168.1.1,192.168.1.2      # 在所有服务器执行但排除指定主机\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -l                                               # 列出所有配置的服务器\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\n模式2 - 直接连接（无需配置文件）:\n")
 		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root \"uptime\"                      # 自动使用 ~/.ssh/id_rsa 密钥\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -h 192.168.1.1 -u root -p \"xxx\" \"uptime\"            # 使用密码执行命令\n", os.Args[0])
@@ -102,7 +105,11 @@ func main() {
 		if isLocalHost(*host) {
 			handleLocalMode(pflag.Args(), put, get, script, formatter)
 		} else {
-			handleDirectMode(host, port, user, password, privateKey, keyPass, timeout, pflag.Args(), put, get, script, formatter)
+			var cfg *config.Config
+			if _, err := os.Stat(*configFile); err == nil {
+				cfg, _ = config.LoadConfig(*configFile)
+			}
+			handleDirectMode(host, port, user, password, privateKey, keyPass, timeout, pflag.Args(), put, get, script, formatter, cfg)
 		}
 		return
 	}
@@ -128,12 +135,20 @@ func main() {
 	exec := executor.New(cfg)
 	var results []ssh.Result
 
+	var excludeHosts []string
+	if *exclude != "" {
+		excludeHosts = strings.Split(*exclude, ",")
+		for i := range excludeHosts {
+			excludeHosts[i] = strings.TrimSpace(excludeHosts[i])
+		}
+	}
+
 	switch {
 	case *hosts != "":
-		results = executeOnHosts(cfg, exec, *hosts, command)
+		results = executeOnHosts(cfg, exec, *hosts, command, excludeHosts)
 	case *group != "":
 		var err error
-		results, err = exec.ExecuteOnGroup(*group, command)
+		results, err = exec.ExecuteOnGroup(*group, command, excludeHosts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: %v\n", err)
 			os.Exit(1)
@@ -143,9 +158,9 @@ func main() {
 		for i := range tagList {
 			tagList[i] = strings.TrimSpace(tagList[i])
 		}
-		results = exec.ExecuteOnTags(tagList, command)
+		results = exec.ExecuteOnTags(tagList, command, excludeHosts)
 	default:
-		results = exec.ExecuteOnAll(command)
+		results = exec.ExecuteOnAll(command, excludeHosts)
 	}
 
 	fmt.Print(formatter.FormatResults(results))
@@ -236,14 +251,46 @@ func getDefaultSSHKey() string {
 	return home + "/.ssh/id_rsa"
 }
 
-func handleDirectMode(host *string, port *int, user, password, privateKey, keyPass *string, timeout *int, args []string, put, get, script *string, formatter *output.Formatter) {
-	if *user == "" {
-		fmt.Fprintf(os.Stderr, "错误: 必须指定用户名 (-u/--user)\n")
-		os.Exit(1)
-	}
-
+func handleDirectMode(host *string, port *int, user, password, privateKey, keyPass *string, timeout *int, args []string, put, get, script *string, formatter *output.Formatter, cfg *config.Config) {
 	useDefaultKey := false
 	defaultKey := getDefaultSSHKey()
+
+	var configServer *config.ServerConfig
+	if cfg != nil {
+		allServers := cfg.GetAllServers()
+		for _, s := range allServers {
+			if s.Host == *host {
+				configServer = &s
+				break
+			}
+		}
+	}
+
+	if configServer != nil {
+		if *user == "" && configServer.User != "" {
+			*user = configServer.User
+			formatter.PrintQuiet("从配置文件使用用户名: %s\n", *user)
+		}
+		if *password == "" && configServer.Password != "" {
+			*password = configServer.Password
+			formatter.PrintQuiet("从配置文件使用密码认证\n")
+		}
+		if *privateKey == "" && configServer.PrivateKey != "" {
+			*privateKey = configServer.PrivateKey
+			formatter.PrintQuiet("从配置文件使用密钥: %s\n", *privateKey)
+		}
+		if *keyPass == "" && configServer.PrivateKeyPassphrase != "" {
+			*keyPass = configServer.PrivateKeyPassphrase
+		}
+		if *port == 22 && configServer.Port != 0 {
+			*port = configServer.Port
+		}
+	}
+
+	if *user == "" {
+		fmt.Fprintf(os.Stderr, "错误: 必须指定用户名 (-u/--user) 或在配置文件中配置该主机\n")
+		os.Exit(1)
+	}
 
 	if *privateKey == "" && *password == "" {
 		if defaultKey != "" {
@@ -448,7 +495,7 @@ func listServers(cfg *config.Config) {
 	}
 }
 
-func executeOnHosts(cfg *config.Config, exec *executor.Executor, hostStr, command string) []ssh.Result {
+func executeOnHosts(cfg *config.Config, exec *executor.Executor, hostStr, command string, excludeHosts []string) []ssh.Result {
 	hostList := strings.Split(hostStr, ",")
 	allServers := cfg.GetAllServers()
 
@@ -471,5 +518,6 @@ func executeOnHosts(cfg *config.Config, exec *executor.Executor, hostStr, comman
 		}
 	}
 
+	targetServers = cfg.FilterExcludedHosts(targetServers, excludeHosts)
 	return exec.ExecuteSequential(targetServers, command)
 }

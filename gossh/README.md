@@ -183,41 +183,70 @@ global:
   port: 22
   timeout: 10
   concurrency: 10
+  # 全局认证配置（可选）- 所有服务器会继承这些值
+  user: root
+  password: "your-password"
+  private_key: "~/.ssh/id_rsa"
+  private_key_passphrase: ""
 
 # 服务器组定义
 groups:
   web:
+    # 这些服务器会继承全局的 user 和 private_key
     - host: 192.168.1.10
-      user: admin
-      password: "your-password"
     - host: 192.168.1.11
+      # 覆盖全局的 user
       user: admin
-      private_key: "~/.ssh/id_rsa"
+      password: "admin-pass"
   
   db:
     - host: 192.168.1.20
-      user: root
+      # 覆盖全局的 private_key
+      password: "db-password"
+    - host: 192.168.1.21
       password: "db-password"
 
 # 独立服务器定义
 servers:
+  # 继承所有全局认证配置
   - host: 192.168.1.100
+    tags:
+      - production
+  
+  # 覆盖部分全局配置
+  - host: 192.168.1.101
     user: ubuntu
-    private_key: "~/.ssh/id_rsa"
+    private_key: "~/.ssh/ubuntu_key"
     tags:
       - production
 ```
 
 ### 配置说明
 
+#### 全局配置 (`global`)
+
+| 字段 | 说明 | 必填 |
+|------|------|------|
+| `port` | 默认SSH端口 | 否（默认22） |
+| `timeout` | 连接超时时间（秒） | 否（默认10） |
+| `concurrency` | 并发数 | 否（默认10） |
+| `user` | 默认用户名 | 否 |
+| `password` | 默认密码 | 否 |
+| `private_key` | 默认SSH私钥路径 | 否 |
+| `private_key_passphrase` | 默认密钥密码 | 否 |
+
+**注意：** 全局认证配置是可选的。当服务器配置中没有指定认证信息时，会自动继承全局配置的值。
+
+#### 服务器配置
+
 | 字段 | 说明 | 必填 |
 |------|------|------|
 | `host` | 服务器地址 | 是 |
-| `port` | SSH端口（默认22） | 否 |
-| `user` | 用户名 | 是 |
-| `password` | 密码 | 密码或密钥二选一 |
-| `private_key` | SSH私钥路径 | 密码或密钥二选一 |
-| `private_key_passphrase` | 密钥密码 | 如果密钥有密码保护 |
+| `port` | SSH端口（默认使用全局配置或22） | 否 |
+| `user` | 用户名（默认使用全局配置） | 否（如果没有全局user则为必填） |
+| `password` | 密码（默认使用全局配置） | 否（密码或密钥至少需要一个） |
+| `private_key` | SSH私钥路径（默认使用全局配置） | 否（密码或密钥至少需要一个） |
+| `private_key_passphrase` | 密钥密码（默认使用全局配置） | 否 |
 | `tags` | 标签列表 | 否 |
 
 ### 配置文件模式用法
@@ -257,6 +286,14 @@ servers:
 ./gossh --hosts 192.168.1.10,192.168.1.11 "uname -a"
 ```
 
+#### 排除特定主机
+
+```bash
+./gossh -g web "uptime" --exclude 192.168.1.10          # 排除单台主机
+./gossh "df -h" -e 192.168.1.10,192.168.1.11            # 排除多台主机
+./gossh -t production "hostname" --exclude 192.168.1.20 # 按标签筛选时排除
+```
+
 #### 使用自定义配置文件
 
 ```bash
@@ -272,6 +309,7 @@ servers:
 | `--group` | `-g` | 服务器组名 |
 | `--tags` | `-t` | 标签筛选（逗号分隔） |
 | `--hosts` | 无 | 指定配置中的主机（逗号分隔） |
+| `--exclude` | `-e` | 排除指定主机（逗号分隔） |
 | `--verbose` | `-v` | 显示详细输出 |
 | `--list` | `-l` | 列出所有服务器 |
 | `--log` | 无 | 将输出保存到日志文件 |

@@ -23,21 +23,24 @@ func New(cfg *config.Config) *Executor {
 	}
 }
 
-func (e *Executor) ExecuteOnAll(command string) []ssh.Result {
+func (e *Executor) ExecuteOnAll(command string, excludeHosts []string) []ssh.Result {
 	servers := e.config.GetAllServers()
+	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
 	return e.executeOnServers(servers, command)
 }
 
-func (e *Executor) ExecuteOnGroup(groupName, command string) ([]ssh.Result, error) {
+func (e *Executor) ExecuteOnGroup(groupName, command string, excludeHosts []string) ([]ssh.Result, error) {
 	servers, exists := e.config.GetServersByGroup(groupName)
 	if !exists {
 		return nil, fmt.Errorf("group '%s' not found", groupName)
 	}
+	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
 	return e.executeOnServers(servers, command), nil
 }
 
-func (e *Executor) ExecuteOnTags(tags []string, command string) []ssh.Result {
+func (e *Executor) ExecuteOnTags(tags []string, command string, excludeHosts []string) []ssh.Result {
 	servers := e.config.GetServersByTags(tags)
+	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
 	return e.executeOnServers(servers, command)
 }
 
