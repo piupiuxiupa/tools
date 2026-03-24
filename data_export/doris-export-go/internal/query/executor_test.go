@@ -637,18 +637,20 @@ func TestConvertValue_Types(t *testing.T) {
 }
 
 func TestParseStringValue(t *testing.T) {
-	// Test boolean parsing
+	// Test boolean parsing (only "true"/"false", not "1"/"0")
 	result := parseStringValue("true")
 	assert.Equal(t, true, result)
 
 	result = parseStringValue("false")
 	assert.Equal(t, false, result)
 
+	// "1" and "0" are parsed as int64 first to avoid type mismatch issues
+	// This ensures consistent schema inference across all rows
 	result = parseStringValue("1")
-	assert.Equal(t, true, result)
+	assert.Equal(t, int64(1), result)
 
 	result = parseStringValue("0")
-	assert.Equal(t, false, result)
+	assert.Equal(t, int64(0), result)
 
 	// Test time parsing
 	result = parseStringValue("2024-01-15")

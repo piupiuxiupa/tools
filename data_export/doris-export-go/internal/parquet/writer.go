@@ -18,14 +18,24 @@ type Writer interface {
 	Close() error
 }
 
+// DateFormat represents how date/time values should be exported
+type DateFormat string
+
+const (
+	DateFormatUnix   DateFormat = "unix"   // Unix timestamp in milliseconds (INT64)
+	DateFormatISO    DateFormat = "iso"    // ISO 8601 format string
+	DateFormatString DateFormat = "string" // Original string format
+)
+
 // Config holds configuration for the Parquet writer
 type Config struct {
 	OutputPath         string
 	Compression        string
 	BatchSize          int
 	TableName          string
-	MaxRowsPerRowGroup int64 // Maximum rows per row group (default 1M)
-	EnableDict         bool  // Enable dictionary encoding (default true)
+	MaxRowsPerRowGroup int64      // Maximum rows per row group (default 1M)
+	EnableDict         bool       // Enable dictionary encoding (default true)
+	DateFormat         DateFormat // Date format: unix (default), iso, string
 }
 
 // FileInfo holds metadata about a written file
@@ -106,7 +116,7 @@ func (w *parquetWriter) initializeWriter(columns []string, sampleRow map[string]
 	group := make(parquet.Group)
 	for _, col := range columns {
 		value := sampleRow[col]
-		node := inferParquetNode(value)
+		node := inferParquetNode(value, w.config.DateFormat)
 		group[col] = node
 	}
 
@@ -124,7 +134,7 @@ func (w *parquetWriter) initializeWriter(columns []string, sampleRow map[string]
 	return nil
 }
 
-func inferParquetNode(value interface{}) parquet.Node {
+func inferParquetNode(value interface{}, dateFormat DateFormat) parquet.Node {
 	if value == nil {
 		return parquet.Optional(parquet.String())
 	}
@@ -141,7 +151,7 @@ func inferParquetNode(value interface{}) parquet.Node {
 	case bool:
 		return parquet.Leaf(parquet.BooleanType)
 	case time.Time:
-		return parquet.Timestamp(parquet.Millisecond)
+		return inferDateTimeNode(dateFormat)
 	default:
 		if s, ok := v.(string); ok {
 			if _, err := fmt.Sscanf(s, "%d", new(int64)); err == nil {
@@ -152,6 +162,17 @@ func inferParquetNode(value interface{}) parquet.Node {
 			}
 		}
 		return parquet.String()
+	}
+}
+
+func inferDateTimeNode(dateFormat DateFormat) parquet.Node {
+	switch dateFormat {
+	case DateFormatISO, DateFormatString:
+		return parquet.String()
+	case DateFormatUnix, "":
+		return parquet.Int(64)
+	default:
+		return parquet.Int(64)
 	}
 }
 
@@ -195,7 +216,8 @@ func (w *parquetWriter) WriteRows(rows []map[string]interface{}) error {
 	}
 
 	for _, row := range rows {
-		parquetRow := w.schema.Deconstruct(nil, row)
+		convertedRow := w.convertRowForDateFormat(row)
+		parquetRow := w.schema.Deconstruct(nil, convertedRow)
 		if _, err := w.writer.WriteRows([]parquet.Row{parquetRow}); err != nil {
 			return fmt.Errorf("failed to write row: %w", err)
 		}
@@ -203,6 +225,21 @@ func (w *parquetWriter) WriteRows(rows []map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+func (w *parquetWriter) convertRowForDateFormat(row map[string]interface{}) map[string]interface{} {
+	if w.config.DateFormat == DateFormatISO || w.config.DateFormat == DateFormatString {
+		converted := make(map[string]interface{}, len(row))
+		for k, v := range row {
+			if t, ok := v.(time.Time); ok {
+				converted[k] = t.Format(time.RFC3339)
+			} else {
+				converted[k] = v
+			}
+		}
+		return converted
+	}
+	return row
 }
 
 func (w *parquetWriter) closeCurrentFile() error {

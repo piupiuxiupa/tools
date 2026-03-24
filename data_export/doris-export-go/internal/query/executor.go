@@ -257,16 +257,17 @@ func convertValue(v interface{}) interface{} {
 }
 
 func parseStringValue(s string) interface{} {
-	if b, err := parseBool(s); err == nil {
-		return b
-	}
-	if t, err := parseTime(s); err == nil {
-		return t
-	}
+	// Try int64 first to avoid "0" and "1" being parsed as boolean
 	// Skip float parsing: DECIMAL/NUMERIC columns are scanned as strings
 	// and must remain as strings to preserve precision.
 	if i, err := parseInt64(s); err == nil {
 		return i
+	}
+	if t, err := parseTime(s); err == nil {
+		return t
+	}
+	if b, err := parseBool(s); err == nil {
+		return b
 	}
 	return s
 }

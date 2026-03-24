@@ -25,6 +25,7 @@ type Options struct {
 	WhereClause string // Optional WHERE clause
 	PartitionBy string // Optional partition column
 	Verify      bool   // Verify after export
+	DateFormat  string // Date format: unix (default), iso, string
 }
 
 // Result holds export results
@@ -126,6 +127,7 @@ func (o *orchestrator) exportSimple(ctx context.Context, opts Options) (*Result,
 		TableName:          opts.Table,
 		MaxRowsPerRowGroup: 1000000,
 		EnableDict:         true,
+		DateFormat:         parquet.DateFormat(opts.DateFormat),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parquet writer: %w", err)

@@ -128,6 +128,30 @@ export_data/
   --verify-only ./export_data/*.parquet
 ```
 
+### 指定日期格式导出
+
+```bash
+# 导出为 Unix 时间戳 (默认)
+./bin/doris-export \
+  --host 127.0.0.1 \
+  -u root \
+  -p 123456 \
+  -d test_db \
+  -t users \
+  -o ./export_data \
+  --date-format unix
+
+# 导出为 ISO 8601 格式字符串
+./bin/doris-export \
+  --host 127.0.0.1 \
+  -u root \
+  -p 123456 \
+  -d test_db \
+  -t users \
+  -o ./export_data \
+  --date-format iso
+```
+
 ## CLI 参数
 
 | 参数 | 简写 | 说明 | 是否必填 |
@@ -146,6 +170,7 @@ export_data/
 | `--no-confirm` | | 大表导出时不提示确认 | |
 | `--verify` | | 导出后验证文件 | |
 | `--verify-only` | | 仅验证指定文件 | |
+| `--date-format` | | 日期时间格式：`unix`(默认,毫秒时间戳), `iso`(ISO8601), `string`(字符串) | |
 
 ## 与 Python 版本的对比
 
