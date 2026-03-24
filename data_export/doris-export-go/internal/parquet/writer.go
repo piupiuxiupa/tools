@@ -36,6 +36,7 @@ type Config struct {
 	MaxRowsPerRowGroup int64      // Maximum rows per row group (default 1M)
 	EnableDict         bool       // Enable dictionary encoding (default true)
 	DateFormat         DateFormat // Date format: unix (default), iso, string
+	DateTimeLayout     string     // Custom date format layout for string format (Go time layout)
 }
 
 // FileInfo holds metadata about a written file
@@ -232,7 +233,8 @@ func (w *parquetWriter) convertRowForDateFormat(row map[string]interface{}) map[
 		converted := make(map[string]interface{}, len(row))
 		for k, v := range row {
 			if t, ok := v.(time.Time); ok {
-				converted[k] = t.Format(time.RFC3339)
+				layout := w.getDateTimeLayout()
+				converted[k] = t.Format(layout)
 			} else {
 				converted[k] = v
 			}
@@ -240,6 +242,21 @@ func (w *parquetWriter) convertRowForDateFormat(row map[string]interface{}) map[
 		return converted
 	}
 	return row
+}
+
+func (w *parquetWriter) getDateTimeLayout() string {
+	switch w.config.DateFormat {
+	case DateFormatISO:
+		return time.RFC3339
+	case DateFormatString:
+		if w.config.DateTimeLayout != "" {
+			return w.config.DateTimeLayout
+		}
+		// Default to common SQL datetime format
+		return "2006-01-02 15:04:05"
+	default:
+		return time.RFC3339
+	}
 }
 
 func (w *parquetWriter) closeCurrentFile() error {

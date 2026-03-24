@@ -35,14 +35,15 @@ var (
 	outputDir string
 
 	// Optional flags
-	batchSize   int
-	where       string
-	partitionBy string
-	dateFormat  string
-	infoOnly    bool
-	noConfirm   bool
-	verifyFlag  bool
-	verifyOnly  []string
+	batchSize      int
+	where          string
+	partitionBy    string
+	dateFormat     string
+	dateTimeLayout string
+	infoOnly       bool
+	noConfirm      bool
+	verifyFlag     bool
+	verifyOnly     []string
 )
 
 // NewRootCommand creates the root command
@@ -98,7 +99,8 @@ func addFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&batchSize, "batch-size", 0, "Batch size for streaming (0 = no batching)")
 	cmd.Flags().StringVar(&where, "where", "", "WHERE clause for filtering data")
 	cmd.Flags().StringVar(&partitionBy, "partition-by", "", "Partition column for partitioned export")
-	cmd.Flags().StringVar(&dateFormat, "date-format", "unix", "Date format: unix (timestamp), iso (ISO8601), string (original)")
+	cmd.Flags().StringVar(&dateFormat, "date-format", "unix", "Date format: unix (timestamp), iso (ISO8601), string (custom)")
+	cmd.Flags().StringVar(&dateTimeLayout, "date-time-layout", "", "Custom datetime layout for string format (e.g., '2006-01-02 15:04:05')")
 	cmd.Flags().BoolVar(&infoOnly, "info-only", false, "Show table info only, no export")
 	cmd.Flags().BoolVar(&noConfirm, "no-confirm", false, "Skip confirmation for large tables")
 	cmd.Flags().BoolVar(&verifyFlag, "verify", false, "Verify after export")
@@ -185,14 +187,15 @@ func runExport(cmd *cobra.Command, args []string) error {
 	// Perform export
 	orchestrator := export.NewOrchestrator(db, metadataService, queryExecutor)
 	exportOpts := export.Options{
-		Database:    dbName,
-		Table:       tableName,
-		OutputDir:   outputDir,
-		BatchSize:   batchSize,
-		WhereClause: where,
-		PartitionBy: partitionBy,
-		Verify:      verifyFlag,
-		DateFormat:  dateFormat,
+		Database:       dbName,
+		Table:          tableName,
+		OutputDir:      outputDir,
+		BatchSize:      batchSize,
+		WhereClause:    where,
+		PartitionBy:    partitionBy,
+		Verify:         verifyFlag,
+		DateFormat:     dateFormat,
+		DateTimeLayout: dateTimeLayout,
 	}
 
 	result, err := orchestrator.Export(ctx, exportOpts)

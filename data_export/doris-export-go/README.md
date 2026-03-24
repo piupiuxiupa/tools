@@ -150,6 +150,27 @@ export_data/
   -t users \
   -o ./export_data \
   --date-format iso
+
+# 导出为自定义格式字符串 (默认: 2006-01-02 15:04:05)
+./bin/doris-export \
+  --host 127.0.0.1 \
+  -u root \
+  -p 123456 \
+  -d test_db \
+  -t users \
+  -o ./export_data \
+  --date-format string
+
+# 导出为指定自定义格式
+./bin/doris-export \
+  --host 127.0.0.1 \
+  -u root \
+  -p 123456 \
+  -d test_db \
+  -t users \
+  -o ./export_data \
+  --date-format string \
+  --date-time-layout "2006-01-02"
 ```
 
 ## CLI 参数
@@ -170,7 +191,8 @@ export_data/
 | `--no-confirm` | | 大表导出时不提示确认 | |
 | `--verify` | | 导出后验证文件 | |
 | `--verify-only` | | 仅验证指定文件 | |
-| `--date-format` | | 日期时间格式：`unix`(默认,毫秒时间戳), `iso`(ISO8601), `string`(字符串) | |
+| `--date-format` | | 日期时间格式：`unix`(默认,毫秒时间戳), `iso`(ISO8601), `string`(自定义字符串) | |
+| `--date-time-layout` | | 自定义日期格式模板（用于 string 格式，Go time layout） | |
 
 ## 与 Python 版本的对比
 

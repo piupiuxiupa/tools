@@ -396,7 +396,7 @@ func (m *Manager) InsertData(tableName string, columns []string, rows []map[stri
 	for i, row := range rows {
 		values := make([]any, len(columns))
 		for j, col := range columns {
-			values[j] = row[col]
+			values[j] = normalizeValue(row[col])
 		}
 
 		_, err := txStmt.Exec(values...)
@@ -431,4 +431,26 @@ func (m *Manager) DB() *sql.DB {
 // Type 返回数据库类型
 func (m *Manager) Type() DBType {
 	return m.dbType
+}
+
+// normalizeValue 将空字符串转换为 nil，以便正确处理 JSON 等类型字段
+func normalizeValue(value any) any {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		return v
+	case []byte:
+		if len(v) == 0 {
+			return nil
+		}
+		return v
+	default:
+		return value
+	}
 }

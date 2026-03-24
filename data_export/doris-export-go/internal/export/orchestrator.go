@@ -18,14 +18,15 @@ import (
 
 // Options configures the export operation
 type Options struct {
-	Database    string
-	Table       string
-	OutputDir   string
-	BatchSize   int    // 0 = no batching
-	WhereClause string // Optional WHERE clause
-	PartitionBy string // Optional partition column
-	Verify      bool   // Verify after export
-	DateFormat  string // Date format: unix (default), iso, string
+	Database       string
+	Table          string
+	OutputDir      string
+	BatchSize      int    // 0 = no batching
+	WhereClause    string // Optional WHERE clause
+	PartitionBy    string // Optional partition column
+	Verify         bool   // Verify after export
+	DateFormat     string // Date format: unix (default), iso, string
+	DateTimeLayout string // Custom datetime layout for string format (Go time layout)
 }
 
 // Result holds export results
@@ -128,6 +129,7 @@ func (o *orchestrator) exportSimple(ctx context.Context, opts Options) (*Result,
 		MaxRowsPerRowGroup: 1000000,
 		EnableDict:         true,
 		DateFormat:         parquet.DateFormat(opts.DateFormat),
+		DateTimeLayout:     opts.DateTimeLayout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parquet writer: %w", err)
@@ -230,6 +232,8 @@ func (o *orchestrator) exportBatched(ctx context.Context, opts Options) (*Result
 			TableName:          opts.Table,
 			MaxRowsPerRowGroup: 1000000,
 			EnableDict:         true,
+			DateFormat:         parquet.DateFormat(opts.DateFormat),
+			DateTimeLayout:     opts.DateTimeLayout,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parquet writer: %w", err)
@@ -331,7 +335,7 @@ func (o *orchestrator) exportPartitioned(ctx context.Context, opts Options) (*Re
 				mu.Unlock()
 				continue
 			}
-			err = o.exportPartitionBatched(batchIter, partitionDir, opts.Table, &allFiles, &totalRows, &mu)
+			err = o.exportPartitionBatched(batchIter, partitionDir, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
 			batchIter.Close()
 		} else {
 			// Simple export for this partition
@@ -343,7 +347,7 @@ func (o *orchestrator) exportPartitioned(ctx context.Context, opts Options) (*Re
 				mu.Unlock()
 				continue
 			}
-			err = o.exportPartitionSimple(iter, partitionDir, opts.Table, &allFiles, &totalRows, &mu)
+			err = o.exportPartitionSimple(iter, partitionDir, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
 			iter.Close()
 		}
 
@@ -390,6 +394,8 @@ func (o *orchestrator) exportPartitionSimple(
 	iter query.Iterator,
 	partitionDir string,
 	tableName string,
+	dateFormat string,
+	dateTimeLayout string,
 	allFiles *[]string,
 	totalRows *int64,
 	mu *sync.Mutex,
@@ -399,6 +405,8 @@ func (o *orchestrator) exportPartitionSimple(
 		TableName:          tableName,
 		MaxRowsPerRowGroup: 1000000,
 		EnableDict:         true,
+		DateFormat:         parquet.DateFormat(dateFormat),
+		DateTimeLayout:     dateTimeLayout,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create parquet writer: %w", err)
@@ -459,6 +467,8 @@ func (o *orchestrator) exportPartitionBatched(
 	batchIter query.BatchIterator,
 	partitionDir string,
 	tableName string,
+	dateFormat string,
+	dateTimeLayout string,
 	allFiles *[]string,
 	totalRows *int64,
 	mu *sync.Mutex,
@@ -483,6 +493,8 @@ func (o *orchestrator) exportPartitionBatched(
 			TableName:          tableName,
 			MaxRowsPerRowGroup: 1000000,
 			EnableDict:         true,
+			DateFormat:         parquet.DateFormat(dateFormat),
+			DateTimeLayout:     dateTimeLayout,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create parquet writer: %w", err)
