@@ -24,7 +24,7 @@ cd data-export-go
 # 编译
 make build
 
-# 编译后的二进制文件位于 ./bin/doris-export
+# 编译后的二进制文件位于 ./bin/data-export
 ```
 
 ### 依赖要求
@@ -40,7 +40,7 @@ make build
 ### 基本导出 (MySQL)
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   --port 3306 \
   --user root \
@@ -53,7 +53,7 @@ make build
 ### 导出 PostgreSQL
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --db-type postgres \
   --host 127.0.0.1 \
   --port 5432 \
@@ -67,7 +67,7 @@ make build
 ### 分批导出
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   --port 9030 \
   -u root \
@@ -81,7 +81,7 @@ make build
 ### 带 WHERE 条件
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -94,7 +94,7 @@ make build
 ### 分区导出
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -117,7 +117,7 @@ export_data/
 ### 仅查看表信息
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -129,7 +129,7 @@ export_data/
 ### 导出并验证
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -142,7 +142,7 @@ export_data/
 ### 仅验证文件
 
 ```bash
-./bin/doris-export \
+./bin/data-export \
   --verify-only ./export_data/*.parquet
 ```
 
@@ -150,7 +150,7 @@ export_data/
 
 ```bash
 # 导出为 Unix 时间戳 (默认)
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -160,7 +160,7 @@ export_data/
   --date-format unix
 
 # 导出为 ISO 8601 格式字符串
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -170,7 +170,7 @@ export_data/
   --date-format iso
 
 # 导出为自定义格式字符串 (默认: 2006-01-02 15:04:05)
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -180,7 +180,7 @@ export_data/
   --date-format string
 
 # 导出为指定自定义格式
-./bin/doris-export \
+./bin/data-export \
   --host 127.0.0.1 \
   -u root \
   -p 123456 \
@@ -228,7 +228,7 @@ export_data/
 ```
 data-export-go/
 ├── cmd/
-│   └── doris-export/        # 主程序入口
+│   └── data-export/        # 主程序入口
 │       └── main.go
 ├── internal/
 │   ├── cli/                 # CLI 命令处理

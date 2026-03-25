@@ -10,7 +10,7 @@ import (
 func TestNewRootCommand(t *testing.T) {
 	cmd := NewRootCommand()
 	assert.NotNil(t, cmd)
-	assert.Equal(t, "doris-export", cmd.Use)
+	assert.Equal(t, "data-export", cmd.Use)
 	assert.NotEmpty(t, cmd.Short)
 	assert.NotEmpty(t, cmd.Long)
 	assert.NotEmpty(t, cmd.Example)
@@ -216,7 +216,7 @@ func TestCommandStructure(t *testing.T) {
 	cmd := NewRootCommand()
 
 	// Verify command structure
-	assert.Equal(t, "doris-export", cmd.Use)
+	assert.Equal(t, "data-export", cmd.Use)
 	assert.NotNil(t, cmd.RunE)
 
 	// Verify subcommands

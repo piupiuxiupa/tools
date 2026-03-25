@@ -50,32 +50,32 @@ var (
 // NewRootCommand creates the root command
 func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "doris-export",
+		Use:   "data-export",
 		Short: "Export Apache Doris data to Parquet format",
-		Long: `doris-export is a CLI tool for exporting data from Apache Doris databases to Parquet files.
+		Long: `data-export is a CLI tool for exporting data from Apache Doris databases to Parquet files.
 
 It supports various export modes including batched exports and partitioned exports,
 with built-in verification capabilities.`,
 		Example: `  # Export a table
-  doris-export --host 127.0.0.1 --port 9030 -u root -p 123456 -d test_db -t users -o ./export
+  data-export --host 127.0.0.1 --port 9030 -u root -p 123456 -d test_db -t users -o ./export
 
   # Export with WHERE clause
-  doris-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --where "age > 18"
+  data-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --where "age > 18"
 
   # Export with batching (creates multiple files)
-  doris-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --batch-size 10000
+  data-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --batch-size 10000
 
   # Export partitioned by a column
-  doris-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --partition-by country
+  data-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --partition-by country
 
   # Show table info only
-  doris-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users --info-only
+  data-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users --info-only
 
   # Export with verification
-  doris-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --verify
+  data-export --host 127.0.0.1 -u root -p 123456 -d test_db -t users -o ./export --verify
 
   # Verify existing parquet files
-  doris-export --verify-only ./export/*.parquet`,
+  data-export --verify-only ./export/*.parquet`,
 		RunE: runExport,
 	}
 
