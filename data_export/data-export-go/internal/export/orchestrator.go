@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/user/doris-export-go/internal/metadata"
-	"github.com/user/doris-export-go/internal/parquet"
-	"github.com/user/doris-export-go/internal/query"
+	"github.com/user/data-export-go/internal/metadata"
+	"github.com/user/data-export-go/internal/parquet"
+	"github.com/user/data-export-go/internal/query"
 )
 
 // Options configures the export operation

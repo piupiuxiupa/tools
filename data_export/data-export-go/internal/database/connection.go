@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/user/doris-export-go/internal/config"
+	"github.com/user/data-export-go/internal/config"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"

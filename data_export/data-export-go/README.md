@@ -19,7 +19,7 @@
 ```bash
 # 克隆仓库
 git clone <repository-url>
-cd doris-export-go
+cd data-export-go
 
 # 编译
 make build
@@ -226,7 +226,7 @@ export_data/
 ## 项目结构
 
 ```
-doris-export-go/
+data-export-go/
 ├── cmd/
 │   └── doris-export/        # 主程序入口
 │       └── main.go

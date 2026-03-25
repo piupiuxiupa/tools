@@ -1,4 +1,4 @@
-module github.com/user/doris-export-go
+module github.com/user/data-export-go
 
 go 1.24.9
 

@@ -14,8 +14,8 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/user/doris-export-go/internal/metadata"
-	"github.com/user/doris-export-go/internal/query"
+	"github.com/user/data-export-go/internal/metadata"
+	"github.com/user/data-export-go/internal/query"
 )
 
 func setupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {

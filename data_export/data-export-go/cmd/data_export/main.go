@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
-	"github.com/user/doris-export-go/internal/cli"
+	"github.com/user/data-export-go/internal/cli"
 )
 
 func main() {

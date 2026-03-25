@@ -10,11 +10,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/user/doris-export-go/internal/database"
-	"github.com/user/doris-export-go/internal/export"
-	"github.com/user/doris-export-go/internal/metadata"
-	"github.com/user/doris-export-go/internal/query"
-	"github.com/user/doris-export-go/internal/verify"
+	"github.com/user/data-export-go/internal/database"
+	"github.com/user/data-export-go/internal/export"
+	"github.com/user/data-export-go/internal/metadata"
+	"github.com/user/data-export-go/internal/query"
+	"github.com/user/data-export-go/internal/verify"
 )
 
 // Constants
