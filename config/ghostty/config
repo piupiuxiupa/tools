@@ -1,0 +1,64 @@
+# ========================
+# 🎨 外观 & 主题
+# ========================
+theme = "Catppuccin Mocha"   
+background-opacity = 0.92    
+background-blur-radius = 12  
+
+# 字体（推荐 Nerd Font）
+font-family = "JetBrainsMono Nerd Font"
+font-size = 14
+
+# 光标
+cursor-style = block
+cursor-style-blink = true
+
+# 窗口边距（更舒服）
+window-padding-x = 12
+window-padding-y = 10
+
+
+# ========================
+# ⚙️ 行为优化
+# ========================
+
+# 滚动缓冲
+scrollback-limit = 50000
+
+# 自动隐藏鼠标
+mouse-hide-while-typing = true
+
+# 新窗口继承目录（非常重要）
+window-inherit-working-directory = true
+
+# 默认工作目录（可选）
+#working-directory = /home/lush
+
+# 粘贴安全
+clipboard-paste-bracketed-safe = true
+
+# 选中自动复制
+copy-on-select = clipboard
+
+# ========================
+# ⌨️ 快捷键
+# ========================
+
+# ========================
+# ⚡ 快速下拉终端
+# ========================
+
+# 定义快捷键（比如 Ctrl + `）
+keybind = global:cmd+grave_accent=toggle_quick_terminal
+#keybind = global:ctrl+grave_accent=toggle_quick_terminal
+
+
+
+# Quick terminal 行为
+quick-terminal-position = top
+quick-terminal-size = 35%, 70%
+quick-terminal-animation-duration = 0.15
+
+# 重载配置
+keybind = ctrl+shift+r=reload_config
+
