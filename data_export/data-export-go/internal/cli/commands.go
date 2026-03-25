@@ -35,6 +35,7 @@ var (
 	outputDir string
 
 	// Optional flags
+	dbType         string
 	batchSize      int
 	where          string
 	partitionBy    string
@@ -87,8 +88,8 @@ with built-in verification capabilities.`,
 // addFlags adds all CLI flags to the command
 func addFlags(cmd *cobra.Command) {
 	// Required flags
-	cmd.Flags().StringVar(&host, "host", "", "Doris FE host (required)")
-	cmd.Flags().IntVar(&port, "port", DefaultPort, "Doris FE port")
+	cmd.Flags().StringVar(&host, "host", "", "Database host (required)")
+	cmd.Flags().IntVar(&port, "port", 0, "Database port (default: mysql=3306, postgres=5432)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Username (required)")
 	cmd.Flags().StringVarP(&password, "password", "p", "", "Password (required)")
 	cmd.Flags().StringVarP(&dbName, "database", "d", "", "Database name (required)")
@@ -96,6 +97,7 @@ func addFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory")
 
 	// Optional flags
+	cmd.Flags().StringVar(&dbType, "db-type", "mysql", "Database type: mysql, postgres, oracle")
 	cmd.Flags().IntVar(&batchSize, "batch-size", 0, "Batch size for streaming (0 = no batching)")
 	cmd.Flags().StringVar(&where, "where", "", "WHERE clause for filtering data")
 	cmd.Flags().StringVar(&partitionBy, "partition-by", "", "Partition column for partitioned export")
@@ -143,7 +145,13 @@ func runExport(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	dbTypeParsed, err := database.ParseDBType(dbType)
+	if err != nil {
+		return err
+	}
+
 	dbConfig := &database.Config{
+		DBType:   dbTypeParsed,
 		Host:     host,
 		Port:     port,
 		Username: user,

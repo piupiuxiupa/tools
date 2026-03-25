@@ -49,7 +49,7 @@ func TestFlags(t *testing.T) {
 	// Test optional flags
 	flag = flags.Lookup("port")
 	assert.NotNil(t, flag)
-	assert.Equal(t, "9030", flag.DefValue)
+	assert.Equal(t, "0", flag.DefValue)
 
 	flag = flags.Lookup("batch-size")
 	assert.NotNil(t, flag)
@@ -196,12 +196,13 @@ func TestRunVerifyOnly_NoFiles(t *testing.T) {
 // This is necessary because flag variables are package-level and persist across tests
 func resetFlags() {
 	host = ""
-	port = DefaultPort
+	port = 0
 	user = ""
 	password = ""
 	dbName = ""
 	tableName = ""
 	outputDir = ""
+	dbType = "mysql"
 	batchSize = 0
 	where = ""
 	partitionBy = ""
@@ -224,8 +225,25 @@ func TestCommandStructure(t *testing.T) {
 	assert.Equal(t, 0, len(cmd.Commands()))
 }
 
-func TestDefaultPort(t *testing.T) {
-	assert.Equal(t, 9030, DefaultPort)
+func TestDBTypeValues(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"--host", "localhost",
+		"-u", "root",
+		"-p", "secret",
+		"-d", "test_db",
+		"--db-type", "postgres",
+	})
+
+	err := cmd.ParseFlags([]string{
+		"--db-type", "postgres",
+	})
+	if err != nil && err.Error() != "pflag: help requested" {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	dt, _ := cmd.Flags().GetString("db-type")
+	assert.Equal(t, "postgres", dt)
 }
 
 func TestLargeTableThreshold(t *testing.T) {
@@ -271,7 +289,7 @@ func TestParseFlags(t *testing.T) {
 				"-u", "admin",
 				"-p", "pass",
 				"-d", "db",
-				"--port", "9031",
+				"--port", "3306",
 				"--batch-size", "5000",
 				"--where", "age > 18",
 				"--partition-by", "country",
@@ -282,7 +300,7 @@ func TestParseFlags(t *testing.T) {
 			validate: func(t *testing.T, cmd *cobra.Command) {
 				f := cmd.Flags()
 				port, _ := f.GetInt("port")
-				assert.Equal(t, 9031, port)
+				assert.Equal(t, 3306, port)
 				batch, _ := f.GetInt("batch-size")
 				assert.Equal(t, 5000, batch)
 				w, _ := f.GetString("where")

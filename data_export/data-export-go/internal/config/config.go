@@ -1,5 +1,14 @@
 package config
 
+// DBType represents the database type
+type DBType string
+
+const (
+	DBTypeMySQL    DBType = "mysql"
+	DBTypeOracle   DBType = "oracle"
+	DBTypePostgres DBType = "postgres"
+)
+
 // Config holds the application configuration
 type Config struct {
 	Database DatabaseConfig
@@ -8,6 +17,7 @@ type Config struct {
 
 // DatabaseConfig holds database connection settings
 type DatabaseConfig struct {
+	DBType   DBType
 	Host     string
 	Port     int
 	User     string

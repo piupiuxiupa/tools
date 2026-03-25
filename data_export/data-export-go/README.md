@@ -1,10 +1,11 @@
-# Doris Export Tool (Go)
+# Data Export Tool (Go)
 
-使用 Go 语言重构的 Doris 数据导出工具，用于从 Doris 数据库导出指定表的数据到 Parquet 文件。
+使用 Go 语言开发的数据库导出工具，支持 MySQL、PostgreSQL 等数据库，用于导出指定表的数据到 Parquet 文件。
 
 ## 功能特性
 
 - 🚀 **高性能**: 使用 Go 语言编写，性能优于 Python 版本
+- 🗄️ **多数据库支持**: 支持 MySQL、PostgreSQL (Oracle 支持开发中)
 - 📦 **Parquet 格式**: 导出为标准 Parquet 格式，支持 Snappy 压缩
 - 🔄 **批量导出**: 支持大数据量的分批导出，避免内存溢出
 - 📁 **分区导出**: 支持按列分区导出到不同子目录
@@ -28,18 +29,35 @@ make build
 
 ### 依赖要求
 
-- Go 1.22 或更高版本
-- Doris 数据库 (MySQL 协议兼容)
+- Go 1.24 或更高版本
+- 支持的数据库:
+  - MySQL (默认)
+  - PostgreSQL
+  - Oracle (开发中，需要 CGO 和 Oracle Instant Client)
 
 ## 使用方法
 
-### 基本导出
+### 基本导出 (MySQL)
 
 ```bash
 ./bin/doris-export \
   --host 127.0.0.1 \
-  --port 9030 \
+  --port 3306 \
   --user root \
+  --password 123456 \
+  --database test_db \
+  --table users \
+  --output ./export_data
+```
+
+### 导出 PostgreSQL
+
+```bash
+./bin/doris-export \
+  --db-type postgres \
+  --host 127.0.0.1 \
+  --port 5432 \
+  --user postgres \
   --password 123456 \
   --database test_db \
   --table users \
@@ -177,8 +195,9 @@ export_data/
 
 | 参数 | 简写 | 说明 | 是否必填 |
 |------|------|------|----------|
-| `--host` | | Doris FE 主机地址 | ✅ |
-| `--port` | | Doris FE 查询端口 (默认: 9030) | |
+| `--db-type` | | 数据库类型: `mysql`(默认), `postgres`, `oracle` | |
+| `--host` | | 数据库主机地址 | ✅ |
+| `--port` | | 数据库端口 (默认: mysql=3306, postgres=5432, oracle=1521) | |
 | `--user` | `-u` | 用户名 | ✅ |
 | `--password` | `-p` | 密码 | ✅ |
 | `--database` | `-d` | 数据库名 | ✅ |
@@ -269,11 +288,12 @@ govulncheck ./...
 ### 连接失败
 
 ```
-连接失败: dial tcp 127.0.0.1:9030: connect: connection refused
+连接失败: dial tcp 127.0.0.1:3306: connect: connection refused
 ```
-- 检查 Doris FE 是否运行
-- 确认端口 9030 是否正确
+- 检查数据库服务是否运行
+- 确认端口是否正确 (MySQL: 3306, PostgreSQL: 5432, Oracle: 1521)
 - 检查防火墙设置
+- 确认 `--db-type` 参数是否设置正确
 
 ### 内存不足
 
@@ -291,7 +311,7 @@ Error 1045: Access denied for user
 ```
 - 检查用户名和密码
 - 确认用户有 SELECT 权限
-- 检查 Doris 白名单配置
+- 检查数据库白名单/访问控制配置
 
 ## 许可证
 
@@ -299,4 +319,4 @@ MIT License
 
 ## 致谢
 
-本项目是对原 Python 版本 `doris_export.py` 的 Go 语言重构版本。
+本项目最初是对原 Python 版本 `doris_export.py` 的 Go 语言重构版本，现已扩展支持多种数据库类型。

@@ -97,10 +97,10 @@ func TestConfig_setDefaults(t *testing.T) {
 	}
 }
 
-func TestManager_buildDSN(t *testing.T) {
+func TestManager_buildMySQLDSN(t *testing.T) {
 	config := &Config{
 		Host:            "localhost",
-		Port:            9030,
+		Port:            3306,
 		Username:        "admin",
 		Password:        "secret123",
 		Database:        "testdb",
@@ -116,17 +116,68 @@ func TestManager_buildDSN(t *testing.T) {
 	mgr := NewConnectionManager(config)
 	m := mgr.(*manager)
 
-	dsn := m.buildDSN()
+	driver, dsn, err := m.buildDSN()
+	if err != nil {
+		t.Fatalf("buildDSN() error = %v", err)
+	}
+	if driver != "mysql" {
+		t.Errorf("driver = %v, want mysql", driver)
+	}
 
 	// time.Duration formats differently (e.g., 5m0s vs 300s), so we check parts of the DSN
 	expectedParts := []string{
-		"admin:secret123@tcp(localhost:9030)/testdb",
+		"admin:secret123@tcp(localhost:3306)/testdb",
 		"timeout=30s",
 		"readTimeout=",
 		"writeTimeout=",
 		"parseTime=true",
 		"loc=Local",
 		"charset=utf8mb4",
+	}
+
+	for _, part := range expectedParts {
+		if !strings.Contains(dsn, part) {
+			t.Errorf("buildDSN() = %v, does not contain %v", dsn, part)
+		}
+	}
+}
+
+func TestManager_buildPostgresDSN(t *testing.T) {
+	config := &Config{
+		DBType:          "postgres",
+		Host:            "localhost",
+		Port:            5432,
+		Username:        "admin",
+		Password:        "secret123",
+		Database:        "testdb",
+		ConnectTimeout:  30 * time.Second,
+		ReadTimeout:     300 * time.Second,
+		WriteTimeout:    300 * time.Second,
+		MaxOpenConns:    10,
+		MaxIdleConns:    10,
+		ConnMaxLifetime: 3 * time.Minute,
+		ConnMaxIdleTime: 1 * time.Minute,
+	}
+
+	mgr := NewConnectionManager(config)
+	m := mgr.(*manager)
+
+	driver, dsn, err := m.buildDSN()
+	if err != nil {
+		t.Fatalf("buildDSN() error = %v", err)
+	}
+	if driver != "postgres" {
+		t.Errorf("driver = %v, want postgres", driver)
+	}
+
+	expectedParts := []string{
+		"host=localhost",
+		"port=5432",
+		"user=admin",
+		"password=secret123",
+		"dbname=testdb",
+		"sslmode=disable",
+		"connect_timeout=30",
 	}
 
 	for _, part := range expectedParts {
