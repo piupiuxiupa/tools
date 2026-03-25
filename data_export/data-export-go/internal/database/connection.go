@@ -11,6 +11,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	_ "github.com/sijms/go-ora/v2"
+	goora "github.com/sijms/go-ora/v2"
 )
 
 // Config holds database connection configuration
@@ -140,22 +142,27 @@ func (m *manager) buildPostgresDSN() (string, string, error) {
 	return "postgres", dsn, nil
 }
 
-// buildOracleDSN constructs the Oracle DSN string from configuration
+// buildOracleDSN constructs the Oracle DSN using go-ora
 func (m *manager) buildOracleDSN() (string, string, error) {
-	// Oracle default port
 	port := m.config.Port
 	if port == 0 {
 		port = 1521
 	}
-	// Oracle connection string format: user/password@host:port/service_name
-	dsn := fmt.Sprintf("%s/%s@%s:%d/%s",
-		m.config.Username,
-		m.config.Password,
+
+	urlOptions := map[string]string{
+		"TIMEOUT": fmt.Sprintf("%d", int(m.config.ConnectTimeout.Seconds())),
+	}
+
+	dsn := goora.BuildUrl(
 		m.config.Host,
 		port,
 		m.config.Database,
+		m.config.Username,
+		m.config.Password,
+		urlOptions,
 	)
-	return "oci8", dsn, nil
+
+	return "oracle", dsn, nil
 }
 
 // Connect establishes a database connection and configures the connection pool

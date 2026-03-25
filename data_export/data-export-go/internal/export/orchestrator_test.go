@@ -14,6 +14,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/user/data-export-go/internal/config"
 	"github.com/user/data-export-go/internal/metadata"
 	"github.com/user/data-export-go/internal/query"
 )
@@ -29,7 +30,7 @@ func TestNewOrchestrator(t *testing.T) {
 	defer db.Close()
 	defer mock.ExpectClose()
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 
 	orch := NewOrchestrator(db, metaService, queryExec)
@@ -41,7 +42,7 @@ func TestOrchestrator_Interface(t *testing.T) {
 	defer db.Close()
 	defer mock.ExpectClose()
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 
 	var orch Orchestrator = NewOrchestrator(db, metaService, queryExec)
@@ -94,7 +95,7 @@ func TestExport_SimpleMode(t *testing.T) {
 			AddRow(2, "Bob", 200).
 			AddRow(3, "Charlie", 300))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -126,7 +127,7 @@ func TestExport_SimpleModeWithWhereClause(t *testing.T) {
 			AddRow(11, "Alice").
 			AddRow(12, "Bob"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -159,7 +160,7 @@ func TestExport_BatchMode(t *testing.T) {
 			AddRow(3, "Charlie").
 			AddRow(4, "David"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -201,7 +202,7 @@ func TestExport_PartitionMode(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows(dataColumns).
 			AddRow(3, "Charlie", "2024-01-02"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -230,7 +231,7 @@ func TestExport_NoPartitionsFound(t *testing.T) {
 	mock.ExpectQuery("SELECT DISTINCT").
 		WillReturnRows(sqlmock.NewRows(partitionColumns))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -259,7 +260,7 @@ func TestExport_QueryError(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnError(errors.New("database error"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -279,7 +280,7 @@ func TestExport_InvalidOutputDir(t *testing.T) {
 	db, _ := setupMockDB(t)
 	defer db.Close()
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -329,7 +330,7 @@ func TestGetParquetFiles(t *testing.T) {
 	db, _ := setupMockDB(t)
 	defer db.Close()
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec).(*orchestrator)
 
@@ -367,7 +368,7 @@ func TestGetParquetFiles_InvalidDir(t *testing.T) {
 	db, _ := setupMockDB(t)
 	defer db.Close()
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec).(*orchestrator)
 
@@ -387,7 +388,7 @@ func TestExport_SimpleMode_EmptyResult(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnRows(sqlmock.NewRows(columns))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -415,7 +416,7 @@ func TestExport_BatchMode_EmptyResult(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnRows(sqlmock.NewRows(columns))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -445,7 +446,7 @@ func TestExport_ContextCancellation(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnRows(sqlmock.NewRows(columns).AddRow(1, "Alice"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -474,7 +475,7 @@ func TestExport_DurationTracking(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnRows(sqlmock.NewRows(columns).AddRow(1))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -508,7 +509,7 @@ func TestExport_ParquetFileCreated(t *testing.T) {
 			AddRow(1, "Alice", 100).
 			AddRow(2, "Bob", 200))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -556,7 +557,7 @@ func TestExport_PartitionDirectoryStructure(t *testing.T) {
 	mock.ExpectQuery("SELECT").
 		WillReturnRows(sqlmock.NewRows(dataColumns).AddRow(2, "2024-01-02"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -620,7 +621,7 @@ func TestExport_PartitionModeWithMultiplePartitions(t *testing.T) {
 				AddRow(i, fmt.Sprintf("region_%d", i)))
 	}
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 
@@ -658,7 +659,7 @@ func TestExport_PartitionModeWithBatching(t *testing.T) {
 			AddRow(2, "Bob", "2024-01-01").
 			AddRow(3, "Charlie", "2024-01-01"))
 
-	metaService := metadata.NewService(db)
+	metaService := metadata.NewService(db, config.DBTypeMySQL)
 	queryExec := query.NewExecutor(db)
 	orch := NewOrchestrator(db, metaService, queryExec)
 

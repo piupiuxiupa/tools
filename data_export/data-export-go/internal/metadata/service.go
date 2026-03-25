@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/user/data-export-go/internal/config"
 )
 
 // TableMetadata holds information about a table
@@ -26,12 +28,13 @@ type Service interface {
 
 // service implements the Service interface
 type service struct {
-	db *sql.DB
+	db     *sql.DB
+	dbType config.DBType
 }
 
 // NewService creates a new metadata service
-func NewService(db *sql.DB) Service {
-	return &service{db: db}
+func NewService(db *sql.DB, dbType config.DBType) Service {
+	return &service{db: db, dbType: dbType}
 }
 
 // GetTableMetadata retrieves complete metadata for a table
@@ -63,9 +66,25 @@ func (s *service) GetTableMetadata(ctx context.Context, database, table string) 
 
 // GetColumns retrieves column names for a table
 func (s *service) GetColumns(ctx context.Context, database, table string) ([]string, error) {
-	query := `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION`
+	var query string
+	var args []interface{}
 
-	rows, err := s.db.QueryContext(ctx, query, database, table)
+	switch s.dbType {
+	case config.DBTypeOracle:
+		// Oracle: use all_tab_columns, owner is case-insensitive in Oracle
+		query = `SELECT column_name FROM all_tab_columns WHERE table_name = UPPER(?) AND owner = UPPER(?) ORDER BY column_id`
+		args = []interface{}{table, database}
+	case config.DBTypePostgres:
+		// PostgreSQL: use information_schema
+		query = `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`
+		args = []interface{}{database, table}
+	default:
+		// MySQL and default: use backtick-quoted identifiers and information_schema
+		query = `SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position`
+		args = []interface{}{database, table}
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query columns: %w", err)
 	}
@@ -89,7 +108,19 @@ func (s *service) GetColumns(ctx context.Context, database, table string) ([]str
 
 // GetRowCount retrieves the number of rows in a table
 func (s *service) GetRowCount(ctx context.Context, database, table string) (int64, error) {
-	query := fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", database, table)
+	var query string
+
+	switch s.dbType {
+	case config.DBTypeOracle:
+		// Oracle uses schema.table format, identifiers are case-insensitive unless quoted
+		query = fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", database, table)
+	case config.DBTypePostgres:
+		// PostgreSQL uses quoted identifiers
+		query = fmt.Sprintf("SELECT COUNT(*) FROM \"%s\".\"%s\"", database, table)
+	default:
+		// MySQL uses backtick-quoted identifiers
+		query = fmt.Sprintf("SELECT COUNT(*) FROM `%s`.`%s`", database, table)
+	}
 
 	var count int64
 	if err := s.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
@@ -101,10 +132,26 @@ func (s *service) GetRowCount(ctx context.Context, database, table string) (int6
 
 // GetTableSize retrieves the data size of a table in MB
 func (s *service) GetTableSize(ctx context.Context, database, table string) (float64, error) {
-	query := `SELECT ROUND(SUM(data_length) / 1024 / 1024, 2) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`
+	var query string
+	var args []interface{}
+
+	switch s.dbType {
+	case config.DBTypeOracle:
+		// Oracle: use all_tables and all_segments for size calculation
+		query = `SELECT ROUND(SUM(bytes) / 1024 / 1024, 2) FROM all_segments WHERE owner = UPPER(?) AND segment_name = UPPER(?)`
+		args = []interface{}{database, table}
+	case config.DBTypePostgres:
+		// PostgreSQL: use pg_total_relation_size
+		query = `SELECT ROUND(pg_total_relation_size($1 || '.' || $2) / 1024.0 / 1024.0, 2)`
+		args = []interface{}{database, table}
+	default:
+		// MySQL: use information_schema
+		query = `SELECT ROUND(SUM(data_length) / 1024 / 1024, 2) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`
+		args = []interface{}{database, table}
+	}
 
 	var size sql.NullFloat64
-	if err := s.db.QueryRowContext(ctx, query, database, table).Scan(&size); err != nil {
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&size); err != nil {
 		return 0, fmt.Errorf("failed to get table size: %w", err)
 	}
 

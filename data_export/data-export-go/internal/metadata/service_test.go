@@ -10,12 +10,13 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/user/data-export-go/internal/config"
 )
 
 func setupMockDB(t *testing.T) (*sqlmock.Sqlmock, Service) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 	return &mock, svc
 }
 
@@ -24,7 +25,7 @@ func TestNewService(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 	assert.NotNil(t, svc)
 }
 
@@ -37,7 +38,7 @@ func TestService_GetColumns(t *testing.T) {
 		AddRow("name").
 		AddRow("email")
 
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnRows(rows)
 
@@ -52,7 +53,7 @@ func TestService_GetColumns_EmptyTable(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"COLUMN_NAME"})
 
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "empty").
 		WillReturnRows(rows)
 
@@ -65,7 +66,7 @@ func TestService_GetColumns_EmptyTable(t *testing.T) {
 func TestService_GetColumns_QueryError(t *testing.T) {
 	mock, svc := setupMockDB(t)
 
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnError(errors.New("connection refused"))
 
@@ -122,7 +123,7 @@ func TestService_GetTableSize_WithData(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"ROUND(SUM(data_length) / 1024 / 1024, 2)"}).AddRow(15.5)
 
-	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "users").
 		WillReturnRows(rows)
 
@@ -137,7 +138,7 @@ func TestService_GetTableSize_Null(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"ROUND(SUM(data_length) / 1024 / 1024, 2)"}).AddRow(nil)
 
-	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "empty").
 		WillReturnRows(rows)
 
@@ -150,7 +151,7 @@ func TestService_GetTableSize_Null(t *testing.T) {
 func TestService_GetTableSize_Error(t *testing.T) {
 	mock, svc := setupMockDB(t)
 
-	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "users").
 		WillReturnError(errors.New("permission denied"))
 
@@ -168,7 +169,7 @@ func TestService_GetTableMetadata(t *testing.T) {
 	columnRows := sqlmock.NewRows([]string{"COLUMN_NAME"}).
 		AddRow("id").
 		AddRow("name")
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnRows(columnRows)
 
@@ -179,7 +180,7 @@ func TestService_GetTableMetadata(t *testing.T) {
 
 	// Table size query
 	sizeRows := sqlmock.NewRows([]string{"ROUND(SUM(data_length) / 1024 / 1024, 2)"}).AddRow(10.0)
-	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "users").
 		WillReturnRows(sizeRows)
 
@@ -197,7 +198,7 @@ func TestService_GetTableMetadata(t *testing.T) {
 func TestService_GetTableMetadata_ColumnsError(t *testing.T) {
 	mock, svc := setupMockDB(t)
 
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnError(errors.New("table not found"))
 
@@ -213,7 +214,7 @@ func TestService_GetTableMetadata_RowCountError(t *testing.T) {
 
 	// Columns query succeeds
 	columnRows := sqlmock.NewRows([]string{"COLUMN_NAME"}).AddRow("id")
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnRows(columnRows)
 
@@ -233,7 +234,7 @@ func TestService_GetTableMetadata_TableSizeError(t *testing.T) {
 
 	// Columns query succeeds
 	columnRows := sqlmock.NewRows([]string{"COLUMN_NAME"}).AddRow("id")
-	(*mock).ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	(*mock).ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnRows(columnRows)
 
@@ -243,7 +244,7 @@ func TestService_GetTableMetadata_TableSizeError(t *testing.T) {
 		WillReturnRows(countRows)
 
 	// Table size query fails
-	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	(*mock).ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "users").
 		WillReturnError(errors.New("access denied"))
 
@@ -259,12 +260,12 @@ func TestService_ContextCancellation_GetColumns(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	mock.ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	mock.ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnError(context.Canceled)
 
@@ -278,7 +279,7 @@ func TestService_ContextTimeout_GetRowCount(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
@@ -297,13 +298,13 @@ func TestService_GetTableSize_WithNullFloat64(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 
 	// Create a null value using driver.Value
 	nullValue := driver.Value(nil)
 	rows := sqlmock.NewRows([]string{"ROUND(SUM(data_length) / 1024 / 1024, 2)"}).AddRow(nullValue)
 
-	mock.ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.TABLES WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \?`).
+	mock.ExpectQuery(`SELECT ROUND\(SUM\(data_length\) / 1024 / 1024, 2\) FROM information_schema.tables WHERE table_schema = \? AND table_name = \?`).
 		WithArgs("testdb", "new_table").
 		WillReturnRows(rows)
 
@@ -318,13 +319,13 @@ func TestService_GetColumns_IterationError(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	svc := NewService(db)
+	svc := NewService(db, config.DBTypeMySQL)
 
 	rows := sqlmock.NewRows([]string{"COLUMN_NAME"}).
 		AddRow("id").
 		RowError(0, errors.New("scan error"))
 
-	mock.ExpectQuery(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = \? AND TABLE_NAME = \? ORDER BY ORDINAL_POSITION`).
+	mock.ExpectQuery(`SELECT column_name FROM information_schema.columns WHERE table_schema = \? AND table_name = \? ORDER BY ordinal_position`).
 		WithArgs("testdb", "users").
 		WillReturnRows(rows)
 

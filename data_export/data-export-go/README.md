@@ -1,11 +1,11 @@
 # Data Export Tool (Go)
 
-使用 Go 语言开发的数据库导出工具，支持 MySQL、PostgreSQL 等数据库，用于导出指定表的数据到 Parquet 文件。
+使用 Go 语言开发的数据库导出工具，支持 MySQL、PostgreSQL、Oracle 等数据库，用于导出指定表的数据到 Parquet 文件。
 
 ## 功能特性
 
 - 🚀 **高性能**: 使用 Go 语言编写，性能优于 Python 版本
-- 🗄️ **多数据库支持**: 支持 MySQL、PostgreSQL (Oracle 支持开发中)
+- 🗄️ **多数据库支持**: 支持 MySQL、PostgreSQL、Oracle
 - 📦 **Parquet 格式**: 导出为标准 Parquet 格式，支持 Snappy 压缩
 - 🔄 **批量导出**: 支持大数据量的分批导出，避免内存溢出
 - 📁 **分区导出**: 支持按列分区导出到不同子目录
@@ -33,7 +33,7 @@ make build
 - 支持的数据库:
   - MySQL (默认)
   - PostgreSQL
-  - Oracle (开发中，需要 CGO 和 Oracle Instant Client)
+  - Oracle
 
 ## 使用方法
 
@@ -63,6 +63,22 @@ make build
   --table users \
   --output ./export_data
 ```
+
+### 导出 Oracle
+
+```bash
+./bin/data-export \
+  --db-type oracle \
+  --host 127.0.0.1 \
+  --port 1521 \
+  --user scott \
+  --password tiger \
+  --database ORCL \
+  --table employees \
+  --output ./export_data
+```
+
+**说明**: `--database` 参数在 Oracle 中指定的是 **Service Name**（服务名）。如果需要使用 SID 连接，可以在配置中指定 `SID` 选项。
 
 ### 分批导出
 

@@ -167,7 +167,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	defer connManager.Close()
 
 	// Create services
-	metadataService := metadata.NewService(db)
+	metadataService := metadata.NewService(db, dbTypeParsed)
 	queryExecutor := query.NewExecutor(db)
 
 	// Get table metadata
