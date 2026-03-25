@@ -1,9 +1,9 @@
 .PHONY: build test clean build-all build-linux build-linux-arm64 build-linux-amd64 build-darwin build-darwin-amd64 build-windows
 
 # Variables
-BINARY_NAME=doris-export
+BINARY_NAME=data-export
 BINARY_PATH=bin/$(BINARY_NAME)
-CMD_PATH=./cmd/doris-export
+CMD_PATH=./cmd/data_export
 
 # Build for current architecture
 build:
