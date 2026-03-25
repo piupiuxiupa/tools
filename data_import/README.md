@@ -33,16 +33,11 @@ go install ./cmd/data_import
 
 ## Oracle 支持说明
 
-Oracle 支持需要安装 Oracle Instant Client 和启用 CGO：
+Oracle 支持使用纯 Go 实现的 `go-ora` 驱动，无需安装 Oracle Instant Client 或启用 CGO：
 
 ```bash
-# macOS (使用 Homebrew)
-brew install instantclient-basic
-export CGO_ENABLED=1
-
-# Linux
-# 下载并安装 Oracle Instant Client
-# https://www.oracle.com/database/technologies/instant-client/downloads.html
+# 直接构建即可，无需额外依赖
+go build -o data_import ./cmd/data_import
 ```
 
 ## 使用方法
@@ -257,9 +252,6 @@ go build -o data_import ./cmd/data_import
 
 # Windows
 go build -o data_import.exe ./cmd/data_import
-
-# 启用 Oracle 支持（需要 CGO）
-CGO_ENABLED=1 go build -o data_import ./cmd/data_import
 ```
 
 ### 运行测试
@@ -277,7 +269,7 @@ go test ./...
   - MySQL: `github.com/go-sql-driver/mysql`
   - PostgreSQL: `github.com/lib/pq`
   - SQLite: `github.com/mattn/go-sqlite3`
-  - Oracle: `github.com/godror/godror` (需要 CGO)
+  - Oracle: `github.com/sijms/go-ora/v2` (纯 Go 实现)
   - Doris: `github.com/go-sql-driver/mysql` (兼容 MySQL 协议)
 
 ## License

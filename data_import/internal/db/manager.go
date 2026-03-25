@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/godror/godror"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -49,26 +48,30 @@ type Manager struct {
 	dsn    string
 }
 
+func getDriverName(dbType DBType) (string, error) {
+	switch dbType {
+	case MySQL, Doris:
+		return "mysql", nil
+	case PostgreSQL:
+		return "postgres", nil
+	case SQLite:
+		return "sqlite3", nil
+	case Oracle:
+		return oracleDriverName()
+	default:
+		return "", fmt.Errorf("[%s] unsupported database type", dbType)
+	}
+}
+
 // NewManager 创建一个新的数据库管理器
 func NewManager(dbType DBType, dsn string) (*Manager, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("[%s] DSN cannot be empty", dbType)
 	}
 
-	var driverName string
-	switch dbType {
-	case MySQL, Doris:
-		// Doris 兼容 MySQL 协议
-		driverName = "mysql"
-	case PostgreSQL:
-		driverName = "postgres"
-	case SQLite:
-		driverName = "sqlite3"
-	case Oracle:
-		// Oracle 使用 godror 驱动（需要 CGO 和 Oracle Instant Client）
-		driverName = "godror"
-	default:
-		return nil, fmt.Errorf("[%s] unsupported database type", dbType)
+	driverName, err := getDriverName(dbType)
+	if err != nil {
+		return nil, err
 	}
 
 	db, err := sql.Open(driverName, dsn)

@@ -173,10 +173,10 @@ func (c *Config) buildSQLiteDSN() string {
 	return c.Host
 }
 
-// buildOracleDSN 构建 Oracle DSN
+// buildOracleDSN 构建 Oracle DSN (使用 go-ora 驱动)
 func (c *Config) buildOracleDSN() string {
-	// 格式: user/password@host:port/service_name
-	dsn := fmt.Sprintf("%s/%s@%s:%d/%s", c.User, c.Password, c.Host, c.Port, c.DBName)
+	// go-ora 支持的格式: oracle://user:password@host:port/service_name
+	dsn := fmt.Sprintf("oracle://%s:%s@%s:%d/%s", c.User, c.Password, c.Host, c.Port, c.DBName)
 	return dsn
 }
 
