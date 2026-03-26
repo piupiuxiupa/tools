@@ -9,19 +9,35 @@ import (
 	"github.com/lush/data_import/internal/db"
 	"github.com/lush/data_import/internal/importer"
 	"github.com/lush/data_import/internal/parquet"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "错误: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	// 解析命令行参数
-	cfg, err := config.ParseFlags()
-	if err != nil {
+var rootCmd = &cobra.Command{
+	Use:   "data_import",
+	Short: "将 Parquet 文件导入到数据库",
+	Long: `数据导入工具 - 支持 MySQL、PostgreSQL、SQLite、Oracle、Doris
+
+将 Parquet 文件数据高效导入到各种数据库中。`,
+	RunE: runImport,
+}
+
+var cfg = config.NewConfig()
+
+func init() {
+	// 绑定配置到命令行参数
+	cfg.BindFlags(rootCmd)
+}
+
+func runImport(cmd *cobra.Command, args []string) error {
+	// 验证配置
+	if err := cfg.Validate(); err != nil {
 		return err
 	}
 

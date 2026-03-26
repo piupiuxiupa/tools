@@ -2,10 +2,10 @@ package config
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 // Config 保存命令行参数配置
@@ -22,80 +22,32 @@ type Config struct {
 	Password string // 数据库密码
 }
 
-// ParseFlags 解析命令行参数并返回配置
-func ParseFlags() (*Config, error) {
-	config := &Config{}
-
-	// 定义命令行参数 - GNU 标准格式：短参 -f，长参 --file
-	flag.StringVar(&config.FilePath, "f", "", "Parquet 文件路径（短参 -f，长参 --file）")
-	flag.StringVar(&config.FilePath, "file", "", "Parquet 文件路径")
-
-	flag.StringVar(&config.DBType, "t", "mysql", "数据库类型（短参 -t，长参 --type）：mysql, postgres, sqlite, oracle, doris")
-	flag.StringVar(&config.DBType, "type", "mysql", "数据库类型：mysql, postgres, sqlite, oracle, doris（默认：mysql）")
-
-	flag.StringVar(&config.DBName, "n", "", "数据库名称（短参 -n，长参 --name）")
-	flag.StringVar(&config.DBName, "name", "", "数据库名称")
-
-	flag.StringVar(&config.TableName, "T", "", "表名（短参 -T，长参 --table）")
-	flag.StringVar(&config.TableName, "table", "", "表名")
-
-	// 数据库连接参数
-	flag.StringVar(&config.Host, "h", "localhost", "数据库主机地址（短参 -h，长参 --host）")
-	flag.StringVar(&config.Host, "host", "localhost", "数据库主机地址（默认：localhost）")
-
-	flag.IntVar(&config.Port, "P", 0, "数据库端口（短参 -P，长参 --port）。MySQL默认3306，PostgreSQL默认5432，Oracle默认1521，Doris默认9030")
-	flag.IntVar(&config.Port, "port", 0, "数据库端口。MySQL默认3306，PostgreSQL默认5432，Oracle默认1521，Doris默认9030")
-
-	flag.StringVar(&config.User, "u", "", "数据库用户名（短参 -u，长参 --user）")
-	flag.StringVar(&config.User, "user", "", "数据库用户名")
-
-	flag.StringVar(&config.Password, "p", "", "数据库密码（短参 -p，长参 --password）")
-	flag.StringVar(&config.Password, "password", "", "数据库密码")
-
-	// 自定义帮助信息
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "用法: %s [选项]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "将 Parquet 文件导入到数据库\n\n")
-		fmt.Fprintf(os.Stderr, "选项:\n")
-		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\n示例:\n")
-		fmt.Fprintf(os.Stderr, "  # MySQL 导入\n")
-		fmt.Fprintf(os.Stderr, "  %s -f data.parquet -n mydb -T mytable -u root -p password -h localhost -P 3306\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  # PostgreSQL 导入\n")
-		fmt.Fprintf(os.Stderr, "  %s -f data.parquet -t postgres -n mydb -T mytable -u postgres -p secret -h localhost\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  # SQLite 导入\n")
-		fmt.Fprintf(os.Stderr, "  %s -f data.parquet -t sqlite -n mydb -T mytable -h ./mydata.db\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  # Oracle 导入\n")
-		fmt.Fprintf(os.Stderr, "  %s -f data.parquet -t oracle -n ORCL -T mytable -u scott -p tiger -h localhost -P 1521\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  # Doris 导入\n")
-		fmt.Fprintf(os.Stderr, "  %s -f data.parquet -t doris -n mydb -T mytable -u root -p password -h localhost -P 9030\n", os.Args[0])
-	}
-
-	flag.Parse()
-
-	// 验证必需参数
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-
-	// 设置默认端口
-	if config.Port == 0 {
-		switch config.DBType {
-		case "mysql":
-			config.Port = 3306
-		case "postgres":
-			config.Port = 5432
-		case "oracle":
-			config.Port = 1521
-		case "doris":
-			config.Port = 9030
-		}
-	}
-
-	return config, nil
+// NewConfig 创建新的配置实例
+func NewConfig() *Config {
+	return &Config{}
 }
 
-// Validate 验证配置参数
+// BindFlags 将配置绑定到 cobra 命令的 flags
+func (c *Config) BindFlags(cmd *cobra.Command) {
+	// 必需参数
+	cmd.Flags().StringVarP(&c.FilePath, "file", "f", "", "Parquet 文件路径")
+	cmd.Flags().StringVarP(&c.DBName, "name", "n", "", "数据库名称")
+	cmd.Flags().StringVarP(&c.TableName, "table", "T", "", "表名")
+	cmd.Flags().StringVarP(&c.User, "user", "u", "", "数据库用户名（SQLite可不填）")
+
+	// 可选参数
+	cmd.Flags().StringVarP(&c.DBType, "type", "t", "mysql", "数据库类型：mysql, postgres, sqlite, oracle, doris")
+	cmd.Flags().StringVarP(&c.Host, "host", "H", "localhost", "数据库主机地址")
+	cmd.Flags().IntVarP(&c.Port, "port", "P", 0, "数据库端口。MySQL默认3306，PostgreSQL默认5432，Oracle默认1521，Doris默认9030")
+	cmd.Flags().StringVarP(&c.Password, "password", "p", "", "数据库密码")
+
+	// 标记必需参数
+	_ = cmd.MarkFlagRequired("file")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("table")
+}
+
+// Validate 验证配置参数并设置默认值
 func (c *Config) Validate() error {
 	var missing []string
 
@@ -126,6 +78,20 @@ func (c *Config) Validate() error {
 	}
 	if !validDBTypes[c.DBType] {
 		return fmt.Errorf("无效的数据库类型: %s，可选值: mysql, postgres, sqlite, oracle, doris", c.DBType)
+	}
+
+	// 设置默认端口
+	if c.Port == 0 {
+		switch c.DBType {
+		case "mysql":
+			c.Port = 3306
+		case "postgres":
+			c.Port = 5432
+		case "oracle":
+			c.Port = 1521
+		case "doris":
+			c.Port = 9030
+		}
 	}
 
 	return nil
@@ -200,7 +166,7 @@ func GetHelpMessage() string {
 	sb.WriteString("  -u, --user string    数据库用户名（SQLite可不填）\n\n")
 	sb.WriteString("可选参数:\n")
 	sb.WriteString("  -t, --type string    数据库类型，可选：mysql, postgres, sqlite, oracle, doris（默认：mysql）\n")
-	sb.WriteString("  -h, --host string    数据库主机地址（默认：localhost）\n")
+	sb.WriteString("  -H, --host string    数据库主机地址（默认：localhost）\n")
 	sb.WriteString("  -P, --port int       数据库端口（MySQL默认3306，PostgreSQL默认5432，Oracle默认1521，Doris默认9030）\n")
 	sb.WriteString("  -p, --password string 数据库密码\n\n")
 	sb.WriteString("示例:\n")
