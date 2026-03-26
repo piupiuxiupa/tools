@@ -27,6 +27,9 @@ func newSyncCmd() *cobra.Command {
 		Example: `  # Sync MySQL to PostgreSQL (dry-run)
   dbschema-sync sync --source mysql://user:pass@localhost/db1 --target postgres://user:pass@localhost/db2 --dry-run
 
+  # Sync with config file
+  dbschema-sync sync --config config.yaml --dry-run
+
   # Sync with auto-apply
   dbschema-sync sync --source mysql://localhost/db1 --target postgres://localhost/db2 --auto-apply
 
@@ -35,19 +38,38 @@ func newSyncCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			log := getLogger(ctx)
+			cfg := getConfig(ctx)
 
-			if sourceDSN == "" || targetDSN == "" {
-				return fmt.Errorf("both --source and --target DSNs are required")
+			flagSourceProvided := cmd.Flags().Changed("source")
+			flagTargetProvided := cmd.Flags().Changed("target")
+
+			var sourceDriver, sourceConn string
+			var targetDriver, targetConn string
+
+			if sourceDSN != "" {
+				var err error
+				sourceDriver, sourceConn, err = parseDSN(sourceDSN)
+				if err != nil {
+					return fmt.Errorf("invalid source DSN: %w", err)
+				}
+			} else if cfg.Source.Driver != "" {
+				sourceDriver = cfg.Source.Driver
+				sourceConn, _ = cfg.Source.BuildDSN()
+			} else if !flagSourceProvided {
+				return fmt.Errorf("source is required: provide via --source flag or set in config file (source.driver, source.host, etc.)")
 			}
 
-			sourceDriver, sourceConn, err := parseDSN(sourceDSN)
-			if err != nil {
-				return fmt.Errorf("invalid source DSN: %w", err)
-			}
-
-			targetDriver, targetConn, err := parseDSN(targetDSN)
-			if err != nil {
-				return fmt.Errorf("invalid target DSN: %w", err)
+			if targetDSN != "" {
+				var err error
+				targetDriver, targetConn, err = parseDSN(targetDSN)
+				if err != nil {
+					return fmt.Errorf("invalid target DSN: %w", err)
+				}
+			} else if cfg.Target.Driver != "" {
+				targetDriver = cfg.Target.Driver
+				targetConn, _ = cfg.Target.BuildDSN()
+			} else if !flagTargetProvided {
+				return fmt.Errorf("target is required: provide via --target flag or set in config file (target.driver, target.host, etc.)")
 			}
 
 			log.Infof("Starting schema synchronization from %s to %s", sourceDriver, targetDriver)
@@ -140,6 +162,18 @@ func newSyncCmd() *cobra.Command {
 
 			// Execute DDL
 			log.Info("Applying changes...")
+
+			if targetDriver == "mysql" || targetDriver == "mariadb" {
+				if _, err := targetDB.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 0"); err != nil {
+					return fmt.Errorf("failed to disable foreign key checks: %w", err)
+				}
+				defer func() {
+					if _, err := targetDB.ExecContext(ctx, "SET FOREIGN_KEY_CHECKS = 1"); err != nil {
+						log.Warnf("Failed to re-enable foreign key checks: %v", err)
+					}
+				}()
+			}
+
 			for _, stmt := range statements {
 				log.Debugf("Executing: %s", stmt)
 				if _, err := targetDB.ExecContext(ctx, stmt); err != nil {
@@ -152,14 +186,11 @@ func newSyncCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (required)")
-	cmd.Flags().StringVar(&targetDSN, "target", "", "Target database DSN (required)")
+	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (can also be set in config file)")
+	cmd.Flags().StringVar(&targetDSN, "target", "", "Target database DSN (can also be set in config file)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show DDL without executing")
 	cmd.Flags().BoolVar(&autoApply, "auto-apply", false, "Apply changes without confirmation")
 	cmd.Flags().StringSliceVar(&ignoreTables, "ignore-tables", nil, "Tables to ignore (comma-separated, supports wildcards)")
-
-	cmd.MarkFlagRequired("source")
-	cmd.MarkFlagRequired("target")
 
 	return cmd
 }

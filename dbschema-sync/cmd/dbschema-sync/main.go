@@ -8,6 +8,11 @@ import (
 	"syscall"
 
 	"github.com/lush/dbschema-sync/internal/cli"
+
+	// Import database drivers to register them
+	_ "github.com/lush/dbschema-sync/internal/database/doris"
+	_ "github.com/lush/dbschema-sync/internal/database/mysql"
+	_ "github.com/lush/dbschema-sync/internal/database/postgres"
 )
 
 var version = "dev"

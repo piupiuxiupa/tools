@@ -29,7 +29,7 @@ It supports comparing schemas, generating DDL statements, and applying changes.`
 		Version: version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			// Skip config loading for certain commands
-			if cmd.Name() == "help" || cmd.Name() == "version" {
+			if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == "init" {
 				return nil
 			}
 
@@ -63,6 +63,7 @@ It supports comparing schemas, generating DDL statements, and applying changes.`
 	rootCmd.AddCommand(newDiffCmd())
 	rootCmd.AddCommand(newExtractCmd())
 	rootCmd.AddCommand(newValidateCmd())
+	rootCmd.AddCommand(newInitCmd())
 
 	return rootCmd.ExecuteContext(ctx)
 }

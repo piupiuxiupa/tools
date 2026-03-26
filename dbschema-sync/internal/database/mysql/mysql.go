@@ -127,11 +127,11 @@ func (d *Driver) ExtractTable(ctx context.Context, db *sql.DB, tableName string)
 }
 
 func (d *Driver) ExtractColumns(ctx context.Context, db *sql.DB, tableName string) ([]*types.Column, error) {
-	query := `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, 
-		CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, EXTRA, 
-		COLUMN_COMMENT, ORDINAL_POSITION 
-	FROM INFORMATION_SCHEMA.COLUMNS 
-	WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? 
+	query := `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT,
+		CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, EXTRA,
+		COLUMN_COMMENT, ORDINAL_POSITION, COLUMN_TYPE
+	FROM INFORMATION_SCHEMA.COLUMNS
+	WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
 	ORDER BY ORDINAL_POSITION`
 
 	rows, err := db.QueryContext(ctx, query, tableName)
@@ -147,6 +147,7 @@ func (d *Driver) ExtractColumns(ctx context.Context, db *sql.DB, tableName strin
 		var defaultValue, extra, comment sql.NullString
 		var isNullable string
 		var ordinalPos int
+		var columnType sql.NullString
 
 		err := rows.Scan(
 			&col.Name,
@@ -159,9 +160,17 @@ func (d *Driver) ExtractColumns(ctx context.Context, db *sql.DB, tableName strin
 			&extra,
 			&comment,
 			&ordinalPos,
+			&columnType,
 		)
 		if err != nil {
 			return nil, database.NewDriverError("mysql", "scan_column", err)
+		}
+
+		if columnType.Valid && strings.Contains(columnType.String, "(") {
+			lowerDataType := strings.ToLower(col.DataType)
+			if lowerDataType == "enum" || lowerDataType == "set" {
+				col.DataType = columnType.String
+			}
 		}
 
 		col.Nullable = isNullable == "YES"

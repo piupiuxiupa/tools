@@ -27,6 +27,9 @@ func newDiffCmd() *cobra.Command {
 		Example: `  # Show diff between MySQL and PostgreSQL
   dbschema-sync diff --source mysql://user:pass@localhost/db1 --target postgres://user:pass@localhost/db2
 
+  # Show diff using config file
+  dbschema-sync diff --config config.yaml
+
   # Output as JSON
   dbschema-sync diff --source mysql://localhost/db1 --target postgres://localhost/db2 --format json
 
@@ -35,19 +38,38 @@ func newDiffCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			log := getLogger(ctx)
+			cfg := getConfig(ctx)
 
-			if sourceDSN == "" || targetDSN == "" {
-				return fmt.Errorf("both --source and --target DSNs are required")
+			flagSourceProvided := cmd.Flags().Changed("source")
+			flagTargetProvided := cmd.Flags().Changed("target")
+
+			var sourceDriver, sourceConn string
+			var targetDriver, targetConn string
+
+			if sourceDSN != "" {
+				var err error
+				sourceDriver, sourceConn, err = parseDSN(sourceDSN)
+				if err != nil {
+					return fmt.Errorf("invalid source DSN: %w", err)
+				}
+			} else if cfg.Source.Driver != "" {
+				sourceDriver = cfg.Source.Driver
+				sourceConn, _ = cfg.Source.BuildDSN()
+			} else if !flagSourceProvided {
+				return fmt.Errorf("source is required: provide via --source flag or set in config file (source.driver, source.host, etc.)")
 			}
 
-			sourceDriver, sourceConn, err := parseDSN(sourceDSN)
-			if err != nil {
-				return fmt.Errorf("invalid source DSN: %w", err)
-			}
-
-			targetDriver, targetConn, err := parseDSN(targetDSN)
-			if err != nil {
-				return fmt.Errorf("invalid target DSN: %w", err)
+			if targetDSN != "" {
+				var err error
+				targetDriver, targetConn, err = parseDSN(targetDSN)
+				if err != nil {
+					return fmt.Errorf("invalid target DSN: %w", err)
+				}
+			} else if cfg.Target.Driver != "" {
+				targetDriver = cfg.Target.Driver
+				targetConn, _ = cfg.Target.BuildDSN()
+			} else if !flagTargetProvided {
+				return fmt.Errorf("target is required: provide via --target flag or set in config file (target.driver, target.host, etc.)")
 			}
 
 			log.Infof("Comparing schemas: %s -> %s", sourceDriver, targetDriver)
@@ -106,13 +128,10 @@ func newDiffCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (required)")
-	cmd.Flags().StringVar(&targetDSN, "target", "", "Target database DSN (required)")
+	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (can also be set in config file)")
+	cmd.Flags().StringVar(&targetDSN, "target", "", "Target database DSN (can also be set in config file)")
 	cmd.Flags().StringVarP(&outputFormat, "format", "f", "table", "Output format (table, json)")
 	cmd.Flags().StringSliceVar(&ignoreTables, "ignore-tables", nil, "Tables to ignore (comma-separated, supports wildcards)")
-
-	cmd.MarkFlagRequired("source")
-	cmd.MarkFlagRequired("target")
 
 	return cmd
 }

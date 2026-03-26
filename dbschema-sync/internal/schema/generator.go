@@ -125,8 +125,9 @@ func (g *baseGenerator) buildColumnDefinition(col *types.Column) string {
 	dataType := g.mapDataType(col.DataType)
 	if col.Length != nil && *col.Length > 0 {
 		dataType = fmt.Sprintf("%s(%d)", dataType, *col.Length)
-	} else if col.Precision != nil {
-		if col.Scale != nil {
+	} else if isDecimalType(dataType) && col.Precision != nil && *col.Precision > 0 {
+		// Only DECIMAL/NUMERIC types support (precision,scale)
+		if col.Scale != nil && *col.Scale >= 0 {
 			dataType = fmt.Sprintf("%s(%d,%d)", dataType, *col.Precision, *col.Scale)
 		} else {
 			dataType = fmt.Sprintf("%s(%d)", dataType, *col.Precision)
@@ -148,4 +149,10 @@ func (g *baseGenerator) mapDataType(sourceType string) string {
 		return sourceType
 	}
 	return targetType
+}
+
+// isDecimalType checks if a type is DECIMAL or NUMERIC (supports precision/scale).
+func isDecimalType(dataType string) bool {
+	lowerType := strings.ToLower(dataType)
+	return strings.HasPrefix(lowerType, "decimal") || strings.HasPrefix(lowerType, "numeric")
 }

@@ -143,8 +143,8 @@ func (g *MySQLGenerator) mapMySQLType(col *types.Column) string {
 		}
 	}
 
-	// Add size/precision
-	if col.Length != nil && *col.Length > 0 {
+	// Add size/precision - only for specific types
+	if col.Length != nil && *col.Length > 0 && supportsLength(dataType) {
 		// Check if type supports length
 		if strings.Contains(dataType, "(") {
 			// Replace existing size
@@ -153,12 +153,18 @@ func (g *MySQLGenerator) mapMySQLType(col *types.Column) string {
 			}
 		}
 		dataType = fmt.Sprintf("%s(%d)", dataType, *col.Length)
-	} else if col.Precision != nil {
-		if col.Scale != nil {
+	} else if isDecimalType(dataType) && col.Precision != nil && *col.Precision > 0 {
+		// Only DECIMAL/NUMERIC types support (precision,scale) syntax in MySQL
+		// Integer types like INT should not have precision/scale applied
+		if col.Scale != nil && *col.Scale >= 0 {
 			dataType = fmt.Sprintf("%s(%d,%d)", dataType, *col.Precision, *col.Scale)
 		} else {
 			dataType = fmt.Sprintf("%s(%d)", dataType, *col.Precision)
 		}
+	}
+
+	if strings.HasPrefix(dataType, "enum(") || strings.HasPrefix(dataType, "set(") {
+		return col.DataType
 	}
 
 	return strings.ToUpper(dataType)
@@ -174,6 +180,25 @@ func isMySQLNumericType(dataType string) bool {
 		}
 	}
 	return false
+}
+
+// supportsLength checks if a MySQL type supports length specification.
+// Types like ENUM, SET, TEXT, BLOB, DATE, JSON do not support length.
+func supportsLength(dataType string) bool {
+	lowerType := strings.ToLower(dataType)
+	// Types that do NOT support length
+	noLengthTypes := []string{
+		"enum", "set", "date", "time", "timestamp", "datetime", "year",
+		"tinytext", "text", "mediumtext", "longtext",
+		"tinyblob", "blob", "mediumblob", "longblob",
+		"json", "geometry", "point", "linestring", "polygon",
+	}
+	for _, t := range noLengthTypes {
+		if strings.HasPrefix(lowerType, t) {
+			return false
+		}
+	}
+	return true
 }
 
 // GenerateDropTable generates a DROP TABLE statement for MySQL.
@@ -457,7 +482,10 @@ func (g *MySQLGenerator) GenerateDiff(diff *types.SchemaDiff) ([]string, error) 
 	return statements, nil
 }
 
-// escapeMySQLString escapes a string for MySQL.
 func escapeMySQLString(s string) string {
-	return strings.ReplaceAll(s, "'", "\\'")
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "'", "''")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	return s
 }

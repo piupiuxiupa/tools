@@ -162,8 +162,9 @@ func (g *DorisGenerator) mapDorisType(col *types.Column) string {
 			}
 			dataType = fmt.Sprintf("%s(%d)", dataType, *col.Length)
 		}
-	} else if col.Precision != nil {
-		if col.Scale != nil {
+	} else if isDorisDecimalType(dataType) && col.Precision != nil && *col.Precision > 0 {
+		// Only DECIMAL types support (precision,scale) in Doris
+		if col.Scale != nil && *col.Scale >= 0 {
 			dataType = fmt.Sprintf("%s(%d,%d)", dataType, *col.Precision, *col.Scale)
 		} else {
 			dataType = fmt.Sprintf("%s(%d)", dataType, *col.Precision)
@@ -378,4 +379,10 @@ func (g *DorisGenerator) GenerateDiff(diff *types.SchemaDiff) ([]string, error) 
 	}
 
 	return statements, nil
+}
+
+// isDorisDecimalType checks if a type is DECIMAL (supports precision/scale).
+func isDorisDecimalType(dataType string) bool {
+	lowerType := strings.ToLower(dataType)
+	return strings.HasPrefix(lowerType, "decimal")
 }

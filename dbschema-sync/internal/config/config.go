@@ -110,6 +110,42 @@ func (c *DatabaseConfig) buildSQLiteDSN() (string, error) {
 	return c.Database, nil
 }
 
+// BuildDSNURI constructs a URI-style DSN string (e.g., mysql://user:pass@host:port/db).
+// This format is used by CLI commands.
+func (c *DatabaseConfig) BuildDSNURI() (string, error) {
+	if c.DSN != "" {
+		// If DSN is already in URI format, return it
+		if strings.Contains(c.DSN, "://") {
+			return c.DSN, nil
+		}
+		// Otherwise, we can't convert driver-specific DSN to URI
+		return "", fmt.Errorf("cannot convert driver-specific DSN to URI format")
+	}
+
+	driver := strings.ToLower(c.Driver)
+	var dsn string
+
+	switch driver {
+	case "mysql":
+		dsn = fmt.Sprintf("mysql://%s:%s@%s:%d/%s", c.User, c.Password, c.Host, c.Port, c.Database)
+	case "postgres", "postgresql":
+		dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s", c.User, c.Password, c.Host, c.Port, c.Database)
+		if c.SSLMode != "" {
+			dsn += fmt.Sprintf("?sslmode=%s", c.SSLMode)
+		}
+	case "sqlite", "sqlite3":
+		if c.Database == "" {
+			dsn = "sqlite://:memory:"
+		} else {
+			dsn = fmt.Sprintf("sqlite://%s", c.Database)
+		}
+	default:
+		return "", fmt.Errorf("unsupported driver: %s", driver)
+	}
+
+	return dsn, nil
+}
+
 // ConnectionPoolConfig holds connection pool settings.
 type ConnectionPoolConfig struct {
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
@@ -375,14 +411,18 @@ func applyEnvOverrides(cfg *Config) {
 
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
-	// Validate source
-	if err := validateDatabaseConfig("source", &c.Source); err != nil {
-		return err
+	// Validate source (only if driver is provided, otherwise it's optional)
+	if c.Source.Driver != "" {
+		if err := validateDatabaseConfig("source", &c.Source); err != nil {
+			return err
+		}
 	}
 
-	// Validate target
-	if err := validateDatabaseConfig("target", &c.Target); err != nil {
-		return err
+	// Validate target (only if driver is provided, otherwise it's optional)
+	if c.Target.Driver != "" {
+		if err := validateDatabaseConfig("target", &c.Target); err != nil {
+			return err
+		}
 	}
 
 	// Validate pool config

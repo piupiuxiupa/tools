@@ -121,10 +121,11 @@ func (g *PostgreSQLGenerator) mapPostgreSQLType(col *types.Column) string {
 			}
 			dataType = fmt.Sprintf("%s(%d)", dataType, *col.Length)
 		}
-	} else if col.Precision != nil {
+	} else if col.Precision != nil && *col.Precision > 0 {
+		// Only add precision/scale for numeric types and when precision > 0
 		switch dataType {
 		case "numeric", "decimal":
-			if col.Scale != nil {
+			if col.Scale != nil && *col.Scale >= 0 {
 				dataType = fmt.Sprintf("%s(%d,%d)", dataType, *col.Precision, *col.Scale)
 			} else {
 				dataType = fmt.Sprintf("%s(%d)", dataType, *col.Precision)

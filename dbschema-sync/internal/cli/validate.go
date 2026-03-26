@@ -31,18 +31,42 @@ This command checks:
   dbschema-sync validate --source mysql://user:pass@localhost/db1 --target postgres://user:pass@localhost/db2
 
   # Validate single database
-  dbschema-sync validate --source mysql://user:pass@localhost/db`,
+  dbschema-sync validate --source mysql://user:pass@localhost/db
+
+  # Validate using config file
+  dbschema-sync validate --config config.yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			log := getLogger(ctx)
+			cfg := getConfig(ctx)
 
-			if sourceDSN == "" {
-				return fmt.Errorf("--source DSN is required")
+			flagSourceProvided := cmd.Flags().Changed("source")
+
+			var sourceDriver, sourceConn string
+			var targetDriver, targetConn string
+
+			if sourceDSN != "" {
+				var err error
+				sourceDriver, sourceConn, err = parseDSN(sourceDSN)
+				if err != nil {
+					return fmt.Errorf("invalid source DSN: %w", err)
+				}
+			} else if cfg.Source.Driver != "" {
+				sourceDriver = cfg.Source.Driver
+				sourceConn, _ = cfg.Source.BuildDSN()
+			} else if !flagSourceProvided {
+				return fmt.Errorf("source is required: provide via --source flag or set in config file (source.driver, source.host, etc.)")
 			}
 
-			sourceDriver, sourceConn, err := parseDSN(sourceDSN)
-			if err != nil {
-				return fmt.Errorf("invalid source DSN: %w", err)
+			if targetDSN != "" {
+				var err error
+				targetDriver, targetConn, err = parseDSN(targetDSN)
+				if err != nil {
+					return fmt.Errorf("invalid target DSN: %w", err)
+				}
+			} else if cfg.Target.Driver != "" {
+				targetDriver = cfg.Target.Driver
+				targetConn, _ = cfg.Target.BuildDSN()
 			}
 
 			fmt.Printf("\n%s\n\n", color.CyanString("Schema Validation Report"))
@@ -61,10 +85,9 @@ This command checks:
 			fmt.Printf("  Status: %s\n", color.GreenString("✓ Valid"))
 
 			// Validate target if provided
-			if targetDSN != "" {
-				targetDriver, targetConn, err := parseDSN(targetDSN)
-				if err != nil {
-					return fmt.Errorf("invalid target DSN: %w", err)
+			if targetConn != "" {
+				if targetDriver == "" {
+					return fmt.Errorf("target driver is required")
 				}
 
 				fmt.Printf("\nTarget Database: %s\n", targetDriver)
@@ -94,10 +117,8 @@ This command checks:
 		},
 	}
 
-	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (required)")
+	cmd.Flags().StringVar(&sourceDSN, "source", "", "Source database DSN (can also be set in config file)")
 	cmd.Flags().StringVar(&targetDSN, "target", "", "Target database DSN (optional, for cross-database validation)")
-
-	cmd.MarkFlagRequired("source")
 
 	return cmd
 }
