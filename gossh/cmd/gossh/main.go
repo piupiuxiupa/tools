@@ -114,18 +114,12 @@ func main() {
 		return
 	}
 
-	if *put != "" || *get != "" || *script != "" {
-		fmt.Fprintf(os.Stderr, "错误: 文件传输和脚本执行功能需要使用 -h/--host 指定目标主机\n")
-		os.Exit(1)
-	}
-
-	if pflag.NArg() == 0 {
-		fmt.Fprintf(os.Stderr, "错误: 请提供要执行的命令\n\n")
+	if pflag.NArg() == 0 && *put == "" && *get == "" && *script == "" {
+		fmt.Fprintf(os.Stderr, "错误: 请提供要执行的命令或使用 --put/--get/--script 选项\n\n")
 		pflag.Usage()
 		os.Exit(1)
 	}
 
-	command := pflag.Arg(0)
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "错误: %v\n", err)
@@ -143,7 +137,18 @@ func main() {
 		}
 	}
 
+	command := ""
+	if pflag.NArg() > 0 {
+		command = pflag.Arg(0)
+	}
+
 	switch {
+	case *put != "":
+		results = handlePut(exec, *put, *hosts, *group, tags, excludeHosts)
+	case *get != "":
+		results = handleGet(exec, *get, *hosts, *group, tags, excludeHosts)
+	case *script != "":
+		results = handleScript(exec, *script, pflag.Args(), *hosts, *group, tags, excludeHosts)
 	case *hosts != "":
 		results = executeOnHosts(cfg, exec, *hosts, command, excludeHosts)
 	case *group != "":
@@ -493,6 +498,110 @@ func listServers(cfg *config.Config) {
 			}
 		}
 	}
+}
+
+func getTargetServers(exec *executor.Executor, hosts, group string, tags []string) []config.ServerConfig {
+	var servers []config.ServerConfig
+
+	switch {
+	case hosts != "":
+		hostList := strings.Split(hosts, ",")
+		allServers := exec.GetAllServers()
+		for _, h := range hostList {
+			h = strings.TrimSpace(h)
+			for _, s := range allServers {
+				if s.Host == h {
+					servers = append(servers, s)
+					break
+				}
+			}
+		}
+	case group != "":
+		groupServers, exists := exec.GetServersByGroup(group)
+		if exists {
+			servers = groupServers
+		}
+	case len(tags) > 0:
+		servers = exec.GetServersByTags(tags)
+	default:
+		servers = exec.GetAllServers()
+	}
+
+	return servers
+}
+
+func handlePut(exec *executor.Executor, putStr, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+	parts := strings.Split(putStr, ":")
+	if len(parts) != 2 {
+		fmt.Fprintf(os.Stderr, "错误: --put 参数格式应为 local:remote\n")
+		os.Exit(1)
+	}
+	localPath, remotePath := parts[0], parts[1]
+
+	var tagList []string
+	if *tags != "" {
+		tagList = strings.Split(*tags, ",")
+		for i := range tagList {
+			tagList[i] = strings.TrimSpace(tagList[i])
+		}
+	}
+
+	servers := getTargetServers(exec, hosts, group, tagList)
+	servers = exec.FilterExcludedHosts(servers, excludeHosts)
+
+	if len(servers) == 0 {
+		fmt.Fprintf(os.Stderr, "错误: 未找到目标服务器\n")
+		os.Exit(1)
+	}
+
+	return exec.TransferPutOnServers(servers, localPath, remotePath)
+}
+
+func handleGet(exec *executor.Executor, getStr, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+	parts := strings.Split(getStr, ":")
+	if len(parts) != 2 {
+		fmt.Fprintf(os.Stderr, "错误: --get 参数格式应为 remote:local，其中 local 是本地目录\n")
+		os.Exit(1)
+	}
+	remotePath, localDir := parts[0], parts[1]
+
+	var tagList []string
+	if *tags != "" {
+		tagList = strings.Split(*tags, ",")
+		for i := range tagList {
+			tagList[i] = strings.TrimSpace(tagList[i])
+		}
+	}
+
+	servers := getTargetServers(exec, hosts, group, tagList)
+	servers = exec.FilterExcludedHosts(servers, excludeHosts)
+
+	if len(servers) == 0 {
+		fmt.Fprintf(os.Stderr, "错误: 未找到目标服务器\n")
+		os.Exit(1)
+	}
+
+	return exec.TransferGetOnServers(servers, remotePath, localDir)
+}
+
+func handleScript(exec *executor.Executor, scriptPath string, args []string, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+	var tagList []string
+	if *tags != "" {
+		tagList = strings.Split(*tags, ",")
+		for i := range tagList {
+			tagList[i] = strings.TrimSpace(tagList[i])
+		}
+	}
+
+	servers := getTargetServers(exec, hosts, group, tagList)
+	servers = exec.FilterExcludedHosts(servers, excludeHosts)
+
+	if len(servers) == 0 {
+		fmt.Fprintf(os.Stderr, "错误: 未找到目标服务器\n")
+		os.Exit(1)
+	}
+
+	return exec.ExecuteScriptOnServers(servers, scriptPath, args)
 }
 
 func executeOnHosts(cfg *config.Config, exec *executor.Executor, hostStr, command string, excludeHosts []string) []ssh.Result {
