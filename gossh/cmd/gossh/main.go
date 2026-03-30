@@ -142,18 +142,25 @@ func main() {
 		command = pflag.Arg(0)
 	}
 
+	onResult := func(result ssh.Result) {
+		formatter.PrintResult(result)
+	}
+
 	switch {
 	case *put != "":
-		results = handlePut(exec, *put, *hosts, *group, tags, excludeHosts)
+		results = handlePut(exec, *put, *hosts, *group, tags, excludeHosts, onResult)
 	case *get != "":
-		results = handleGet(exec, *get, *hosts, *group, tags, excludeHosts)
+		results = handleGet(exec, *get, *hosts, *group, tags, excludeHosts, onResult)
 	case *script != "":
-		results = handleScript(exec, *script, pflag.Args(), *hosts, *group, tags, excludeHosts)
+		results = handleScript(exec, *script, pflag.Args(), *hosts, *group, tags, excludeHosts, onResult)
 	case *hosts != "":
 		results = executeOnHosts(cfg, exec, *hosts, command, excludeHosts)
+		for _, r := range results {
+			onResult(r)
+		}
 	case *group != "":
 		var err error
-		results, err = exec.ExecuteOnGroup(*group, command, excludeHosts)
+		results, err = exec.ExecuteOnGroup(*group, command, excludeHosts, onResult)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "错误: %v\n", err)
 			os.Exit(1)
@@ -163,12 +170,12 @@ func main() {
 		for i := range tagList {
 			tagList[i] = strings.TrimSpace(tagList[i])
 		}
-		results = exec.ExecuteOnTags(tagList, command, excludeHosts)
+		results = exec.ExecuteOnTags(tagList, command, excludeHosts, onResult)
 	default:
-		results = exec.ExecuteOnAll(command, excludeHosts)
+		results = exec.ExecuteOnAll(command, excludeHosts, onResult)
 	}
 
-	fmt.Print(formatter.FormatResults(results))
+	formatter.PrintSummary(results)
 }
 
 func handleLocalMode(args []string, put, get, script *string, formatter *output.Formatter) {
@@ -530,7 +537,7 @@ func getTargetServers(exec *executor.Executor, hosts, group string, tags []strin
 	return servers
 }
 
-func handlePut(exec *executor.Executor, putStr, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+func handlePut(exec *executor.Executor, putStr, hosts, group string, tags *string, excludeHosts []string, onResult func(ssh.Result)) []ssh.Result {
 	parts := strings.Split(putStr, ":")
 	if len(parts) != 2 {
 		fmt.Fprintf(os.Stderr, "错误: --put 参数格式应为 local:remote\n")
@@ -554,10 +561,10 @@ func handlePut(exec *executor.Executor, putStr, hosts, group string, tags *strin
 		os.Exit(1)
 	}
 
-	return exec.TransferPutOnServers(servers, localPath, remotePath)
+	return exec.TransferPutOnServers(servers, localPath, remotePath, onResult)
 }
 
-func handleGet(exec *executor.Executor, getStr, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+func handleGet(exec *executor.Executor, getStr, hosts, group string, tags *string, excludeHosts []string, onResult func(ssh.Result)) []ssh.Result {
 	parts := strings.Split(getStr, ":")
 	if len(parts) != 2 {
 		fmt.Fprintf(os.Stderr, "错误: --get 参数格式应为 remote:local，其中 local 是本地目录\n")
@@ -581,10 +588,10 @@ func handleGet(exec *executor.Executor, getStr, hosts, group string, tags *strin
 		os.Exit(1)
 	}
 
-	return exec.TransferGetOnServers(servers, remotePath, localDir)
+	return exec.TransferGetOnServers(servers, remotePath, localDir, onResult)
 }
 
-func handleScript(exec *executor.Executor, scriptPath string, args []string, hosts, group string, tags *string, excludeHosts []string) []ssh.Result {
+func handleScript(exec *executor.Executor, scriptPath string, args []string, hosts, group string, tags *string, excludeHosts []string, onResult func(ssh.Result)) []ssh.Result {
 	var tagList []string
 	if *tags != "" {
 		tagList = strings.Split(*tags, ",")
@@ -601,7 +608,7 @@ func handleScript(exec *executor.Executor, scriptPath string, args []string, hos
 		os.Exit(1)
 	}
 
-	return exec.ExecuteScriptOnServers(servers, scriptPath, args)
+	return exec.ExecuteScriptOnServers(servers, scriptPath, args, onResult)
 }
 
 func executeOnHosts(cfg *config.Config, exec *executor.Executor, hostStr, command string, excludeHosts []string) []ssh.Result {

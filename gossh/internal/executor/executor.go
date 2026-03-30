@@ -26,28 +26,28 @@ func New(cfg *config.Config) *Executor {
 	}
 }
 
-func (e *Executor) ExecuteOnAll(command string, excludeHosts []string) []ssh.Result {
+func (e *Executor) ExecuteOnAll(command string, excludeHosts []string, onResult func(ssh.Result)) []ssh.Result {
 	servers := e.config.GetAllServers()
 	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
-	return e.executeOnServers(servers, command)
+	return e.executeOnServers(servers, command, onResult)
 }
 
-func (e *Executor) ExecuteOnGroup(groupName, command string, excludeHosts []string) ([]ssh.Result, error) {
+func (e *Executor) ExecuteOnGroup(groupName, command string, excludeHosts []string, onResult func(ssh.Result)) ([]ssh.Result, error) {
 	servers, exists := e.config.GetServersByGroup(groupName)
 	if !exists {
 		return nil, fmt.Errorf("group '%s' not found", groupName)
 	}
 	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
-	return e.executeOnServers(servers, command), nil
+	return e.executeOnServers(servers, command, onResult), nil
 }
 
-func (e *Executor) ExecuteOnTags(tags []string, command string, excludeHosts []string) []ssh.Result {
+func (e *Executor) ExecuteOnTags(tags []string, command string, excludeHosts []string, onResult func(ssh.Result)) []ssh.Result {
 	servers := e.config.GetServersByTags(tags)
 	servers = e.config.FilterExcludedHosts(servers, excludeHosts)
-	return e.executeOnServers(servers, command)
+	return e.executeOnServers(servers, command, onResult)
 }
 
-func (e *Executor) executeOnServers(servers []config.ServerConfig, command string) []ssh.Result {
+func (e *Executor) executeOnServers(servers []config.ServerConfig, command string, onResult func(ssh.Result)) []ssh.Result {
 	if len(servers) == 0 {
 		return []ssh.Result{}
 	}
@@ -66,6 +66,9 @@ func (e *Executor) executeOnServers(servers []config.ServerConfig, command strin
 
 			result := e.executeOnServer(&srv, command)
 			results[index] = *result
+			if onResult != nil {
+				onResult(*result)
+			}
 		}(i, server)
 	}
 
@@ -110,7 +113,7 @@ func (e *Executor) ExecuteSequential(servers []config.ServerConfig, command stri
 	return results
 }
 
-func (e *Executor) TransferPutOnServers(servers []config.ServerConfig, localPath, remotePath string) []ssh.Result {
+func (e *Executor) TransferPutOnServers(servers []config.ServerConfig, localPath, remotePath string, onResult func(ssh.Result)) []ssh.Result {
 	if len(servers) == 0 {
 		return []ssh.Result{}
 	}
@@ -129,6 +132,9 @@ func (e *Executor) TransferPutOnServers(servers []config.ServerConfig, localPath
 
 			result := e.transferPutOnServer(&srv, localPath, remotePath)
 			results[index] = *result
+			if onResult != nil {
+				onResult(*result)
+			}
 		}(i, server)
 	}
 
@@ -167,7 +173,7 @@ func (e *Executor) transferPutOnServer(serverConfig *config.ServerConfig, localP
 	}
 }
 
-func (e *Executor) TransferGetOnServers(servers []config.ServerConfig, remotePath, localDir string) []ssh.Result {
+func (e *Executor) TransferGetOnServers(servers []config.ServerConfig, remotePath, localDir string, onResult func(ssh.Result)) []ssh.Result {
 	if len(servers) == 0 {
 		return []ssh.Result{}
 	}
@@ -186,6 +192,9 @@ func (e *Executor) TransferGetOnServers(servers []config.ServerConfig, remotePat
 
 			result := e.transferGetOnServer(&srv, remotePath, localDir)
 			results[index] = *result
+			if onResult != nil {
+				onResult(*result)
+			}
 		}(i, server)
 	}
 
@@ -228,7 +237,7 @@ func (e *Executor) transferGetOnServer(serverConfig *config.ServerConfig, remote
 	}
 }
 
-func (e *Executor) ExecuteScriptOnServers(servers []config.ServerConfig, scriptPath string, args []string) []ssh.Result {
+func (e *Executor) ExecuteScriptOnServers(servers []config.ServerConfig, scriptPath string, args []string, onResult func(ssh.Result)) []ssh.Result {
 	if len(servers) == 0 {
 		return []ssh.Result{}
 	}
@@ -247,6 +256,9 @@ func (e *Executor) ExecuteScriptOnServers(servers []config.ServerConfig, scriptP
 
 			result := e.executeScriptOnServer(&srv, scriptPath, args)
 			results[index] = *result
+			if onResult != nil {
+				onResult(*result)
+			}
 		}(i, server)
 	}
 

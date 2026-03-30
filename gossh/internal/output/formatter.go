@@ -86,6 +86,38 @@ func (f *Formatter) FormatResults(results []ssh.Result) string {
 	return output
 }
 
+func (f *Formatter) PrintResult(result ssh.Result) {
+	output := f.formatSingleResult(result)
+	f.writeToLog(output + "\n")
+	if !f.quiet {
+		fmt.Print(output + "\n")
+	}
+}
+
+func (f *Formatter) PrintSummary(results []ssh.Result) {
+	successCount := 0
+	failCount := 0
+
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		} else {
+			failCount++
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("\n========== 执行结果汇总 ==========\n"))
+	sb.WriteString(fmt.Sprintf("总计: %d | 成功: %d | 失败: %d\n", len(results), successCount, failCount))
+	sb.WriteString(fmt.Sprintf("================================\n"))
+
+	output := sb.String()
+	f.writeToLog(output + "\n")
+	if !f.quiet {
+		fmt.Print(output)
+	}
+}
+
 func (f *Formatter) formatQuietResults(results []ssh.Result) string {
 	var sb strings.Builder
 
