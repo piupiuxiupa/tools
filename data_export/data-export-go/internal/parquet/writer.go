@@ -32,11 +32,13 @@ type Config struct {
 	OutputPath         string
 	Compression        string
 	BatchSize          int
+	DatabaseName       string
 	TableName          string
 	MaxRowsPerRowGroup int64      // Maximum rows per row group (default 1M)
 	EnableDict         bool       // Enable dictionary encoding (default true)
 	DateFormat         DateFormat // Date format: unix (default), iso, string
 	DateTimeLayout     string     // Custom date format layout for string format (Go time layout)
+	BatchNumber        int        // Current batch number (1-indexed), set to > 0 for batched exports
 }
 
 // FileInfo holds metadata about a written file
@@ -86,7 +88,22 @@ func NewWriter(config Config) (Writer, error) {
 
 func (w *parquetWriter) generateFilename() string {
 	timestamp := time.Now().Format("20060102_150405")
-	return fmt.Sprintf("%s_%s_batch%04d.parquet", w.config.TableName, timestamp, w.batchNum)
+
+	dbName := w.config.DatabaseName
+	if dbName == "" {
+		dbName = "export"
+	}
+	tableName := w.config.TableName
+	if tableName == "" {
+		tableName = "data"
+	}
+
+	// Format: dbname__table__time__batchXXXX.parquet (if batched)
+	//         dbname__table__time.parquet (if not batched)
+	if w.config.BatchNumber > 0 {
+		return fmt.Sprintf("%s__%s__%s__batch%04d.parquet", dbName, tableName, timestamp, w.config.BatchNumber)
+	}
+	return fmt.Sprintf("%s__%s__%s.parquet", dbName, tableName, timestamp)
 }
 
 func (w *parquetWriter) getFullPath() string {

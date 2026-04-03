@@ -88,8 +88,8 @@ with built-in verification capabilities.`,
 // addFlags adds all CLI flags to the command
 func addFlags(cmd *cobra.Command) {
 	// Required flags
-	cmd.Flags().StringVar(&host, "host", "", "Database host (required)")
-	cmd.Flags().IntVar(&port, "port", 0, "Database port (default: mysql=3306, postgres=5432)")
+	cmd.Flags().StringVar(&host, "host", "127.0.0.1", "Database host (required)")
+	cmd.Flags().IntVar(&port, "port", 3306, "Database port (default: mysql=3306, postgres=5432)")
 	cmd.Flags().StringVarP(&user, "user", "u", "", "Username (required)")
 	cmd.Flags().StringVarP(&password, "password", "p", "", "Password (required)")
 	cmd.Flags().StringVarP(&dbName, "database", "d", "", "Database name (required)")

@@ -125,6 +125,7 @@ func (o *orchestrator) exportSimple(ctx context.Context, opts Options) (*Result,
 	// Create parquet writer
 	writer, err := parquet.NewWriter(parquet.Config{
 		OutputPath:         opts.OutputDir,
+		DatabaseName:       opts.Database,
 		TableName:          opts.Table,
 		MaxRowsPerRowGroup: 1000000,
 		EnableDict:         true,
@@ -227,13 +228,16 @@ func (o *orchestrator) exportBatched(ctx context.Context, opts Options) (*Result
 		}
 
 		// Create a new writer for each batch file
+		fileCount++
 		writer, err := parquet.NewWriter(parquet.Config{
 			OutputPath:         opts.OutputDir,
+			DatabaseName:       opts.Database,
 			TableName:          opts.Table,
 			MaxRowsPerRowGroup: 1000000,
 			EnableDict:         true,
 			DateFormat:         parquet.DateFormat(opts.DateFormat),
 			DateTimeLayout:     opts.DateTimeLayout,
+			BatchNumber:        fileCount,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parquet writer: %w", err)
@@ -249,7 +253,6 @@ func (o *orchestrator) exportBatched(ctx context.Context, opts Options) (*Result
 		}
 
 		totalRows += int64(len(batch))
-		fileCount++
 
 		o.logger.WithFields(logrus.Fields{
 			"batch": fileCount,
@@ -335,7 +338,7 @@ func (o *orchestrator) exportPartitioned(ctx context.Context, opts Options) (*Re
 				mu.Unlock()
 				continue
 			}
-			err = o.exportPartitionBatched(batchIter, partitionDir, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
+			err = o.exportPartitionBatched(batchIter, partitionDir, opts.Database, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
 			batchIter.Close()
 		} else {
 			// Simple export for this partition
@@ -347,7 +350,7 @@ func (o *orchestrator) exportPartitioned(ctx context.Context, opts Options) (*Re
 				mu.Unlock()
 				continue
 			}
-			err = o.exportPartitionSimple(iter, partitionDir, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
+			err = o.exportPartitionSimple(iter, partitionDir, opts.Database, opts.Table, opts.DateFormat, opts.DateTimeLayout, &allFiles, &totalRows, &mu)
 			iter.Close()
 		}
 
@@ -393,6 +396,7 @@ func (o *orchestrator) exportPartitioned(ctx context.Context, opts Options) (*Re
 func (o *orchestrator) exportPartitionSimple(
 	iter query.Iterator,
 	partitionDir string,
+	databaseName string,
 	tableName string,
 	dateFormat string,
 	dateTimeLayout string,
@@ -402,6 +406,7 @@ func (o *orchestrator) exportPartitionSimple(
 ) error {
 	writer, err := parquet.NewWriter(parquet.Config{
 		OutputPath:         partitionDir,
+		DatabaseName:       databaseName,
 		TableName:          tableName,
 		MaxRowsPerRowGroup: 1000000,
 		EnableDict:         true,
@@ -466,6 +471,7 @@ func (o *orchestrator) exportPartitionSimple(
 func (o *orchestrator) exportPartitionBatched(
 	batchIter query.BatchIterator,
 	partitionDir string,
+	databaseName string,
 	tableName string,
 	dateFormat string,
 	dateTimeLayout string,
@@ -473,6 +479,7 @@ func (o *orchestrator) exportPartitionBatched(
 	totalRows *int64,
 	mu *sync.Mutex,
 ) error {
+	var fileCount int
 	for {
 		batch, err := batchIter.NextBatch()
 		if err != nil {
@@ -488,13 +495,16 @@ func (o *orchestrator) exportPartitionBatched(
 			rows[i] = row
 		}
 
+		fileCount++
 		writer, err := parquet.NewWriter(parquet.Config{
 			OutputPath:         partitionDir,
+			DatabaseName:       databaseName,
 			TableName:          tableName,
 			MaxRowsPerRowGroup: 1000000,
 			EnableDict:         true,
 			DateFormat:         parquet.DateFormat(dateFormat),
 			DateTimeLayout:     dateTimeLayout,
+			BatchNumber:        fileCount,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create parquet writer: %w", err)

@@ -23,7 +23,7 @@ func TestFlags(t *testing.T) {
 	// Test required flags exist
 	flag := flags.Lookup("host")
 	assert.NotNil(t, flag)
-	assert.Equal(t, "", flag.DefValue)
+	assert.Equal(t, "127.0.0.1", flag.DefValue)
 	assert.Contains(t, flag.Usage, "required")
 
 	flag = flags.Lookup("user")
@@ -49,7 +49,7 @@ func TestFlags(t *testing.T) {
 	// Test optional flags
 	flag = flags.Lookup("port")
 	assert.NotNil(t, flag)
-	assert.Equal(t, "0", flag.DefValue)
+	assert.Equal(t, "3306", flag.DefValue)
 
 	flag = flags.Lookup("batch-size")
 	assert.NotNil(t, flag)

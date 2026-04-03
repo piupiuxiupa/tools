@@ -218,9 +218,10 @@ func TestFileNaming(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	config := Config{
-		OutputPath:  tmpDir,
-		Compression: "snappy",
-		TableName:   "my_table",
+		OutputPath:   tmpDir,
+		Compression:  "snappy",
+		DatabaseName: "testdb",
+		TableName:    "my_table",
 	}
 
 	writer, err := NewWriter(config)
@@ -242,12 +243,10 @@ func TestFileNaming(t *testing.T) {
 	fileInfo := pw.GetFileInfo()
 	filename := filepath.Base(fileInfo.Path)
 
-	// Should contain table name
-	assert.True(t, strings.HasPrefix(filename, "my_table_"))
-	// Should contain timestamp
-	assert.Contains(t, filename, "_")
-	// Should contain batch number
-	assert.Contains(t, filename, "batch")
+	// Should contain database name and table name in format: dbname__table__timestamp.parquet
+	assert.True(t, strings.HasPrefix(filename, "testdb__my_table__"), "filename should start with testdb__my_table__")
+	// Should NOT contain batch suffix (no BatchNumber set)
+	assert.NotContains(t, filename, "batch", "non-batch export should not contain 'batch'")
 	// Should have .parquet extension
 	assert.True(t, strings.HasSuffix(filename, ".parquet"))
 }
