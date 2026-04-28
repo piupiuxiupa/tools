@@ -16,10 +16,11 @@ type Config struct {
 	TableName string // 表名
 
 	// 数据库连接参数
-	Host     string // 数据库主机
-	Port     int    // 数据库端口
-	User     string // 数据库用户名
-	Password string // 数据库密码
+	Host       string // 数据库主机
+	Port       int    // 数据库端口
+	User       string // 数据库用户名
+	Password   string // 数据库密码
+	FEHTTPPort int    // Doris FE HTTP 端口（Stream Load 使用，默认 8030）
 }
 
 // NewConfig 创建新的配置实例
@@ -39,6 +40,7 @@ func (c *Config) BindFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.DBType, "type", "t", "mysql", "数据库类型：mysql, postgres, sqlite, oracle, doris")
 	cmd.Flags().StringVarP(&c.Host, "host", "H", "localhost", "数据库主机地址")
 	cmd.Flags().IntVarP(&c.Port, "port", "P", 0, "数据库端口。MySQL默认3306，PostgreSQL默认5432，Oracle默认1521，Doris默认9030")
+	cmd.Flags().IntVar(&c.FEHTTPPort, "fe-http-port", 0, "Doris FE HTTP 端口（Stream Load 使用，默认 8030）")
 	cmd.Flags().StringVarP(&c.Password, "password", "p", "", "数据库密码")
 
 	// 标记必需参数
@@ -94,6 +96,11 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Set default Doris HTTP port
+	if c.DBType == "doris" && c.FEHTTPPort == 0 {
+		c.FEHTTPPort = 8030
+	}
+
 	return nil
 }
 
@@ -117,9 +124,9 @@ func (c *Config) BuildDSN() string {
 
 // buildMySQLDSN 构建 MySQL DSN
 func (c *Config) buildMySQLDSN() string {
-	// 格式: user:password@tcp(host:port)/dbname
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.User, c.Password, c.Host, c.Port, c.DBName)
-	return dsn
+	// 格式: user:password@tcp(host:port)/dbname?params
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?allowAllFiles=true&interpolateParams=true",
+		c.User, c.Password, c.Host, c.Port, c.DBName)
 }
 
 // buildPostgresDSN 构建 PostgreSQL DSN
@@ -132,11 +139,14 @@ func (c *Config) buildPostgresDSN() string {
 
 // buildSQLiteDSN 构建 SQLite DSN
 func (c *Config) buildSQLiteDSN() string {
-	// SQLite 使用主机作为文件路径
+	var dbPath string
 	if c.Host == "" || c.Host == "localhost" {
-		return c.DBName + ".db"
+		dbPath = c.DBName + ".db"
+	} else {
+		dbPath = c.Host
 	}
-	return c.Host
+	return fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=-20000&_busy_timeout=5000&_txlock=immediate",
+		dbPath)
 }
 
 // buildOracleDSN 构建 Oracle DSN (使用 go-ora 驱动)
@@ -148,10 +158,8 @@ func (c *Config) buildOracleDSN() string {
 
 // buildDorisDSN 构建 Doris DSN
 func (c *Config) buildDorisDSN() string {
-	// Doris 使用 MySQL 协议，格式与 MySQL 相同
-	// 格式: user:password@tcp(host:port)/dbname
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.User, c.Password, c.Host, c.Port, c.DBName)
-	return dsn
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?allowAllFiles=true&interpolateParams=true",
+		c.User, c.Password, c.Host, c.Port, c.DBName)
 }
 
 // GetHelpMessage 返回使用帮助信息

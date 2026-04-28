@@ -81,6 +81,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 	// 创建导入引擎
 	fmt.Printf("[3/4] 准备导入...\n")
 	engine := importer.NewEngine(reader, dbManager)
+	engine.SetConfig(cfg)
 
 	// 执行导入（带数据库存在性验证）
 	fmt.Printf("[4/4] 开始导入数据...\n")

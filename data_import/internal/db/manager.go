@@ -10,6 +10,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/lush/data_import/internal/config"
 )
 
 // DBType 表示数据库类型
@@ -46,6 +48,12 @@ type Manager struct {
 	db     *sql.DB
 	dbType DBType
 	dsn    string
+	cfg    *config.Config // optional, needed for Doris Stream Load
+}
+
+// SetConfig sets the config for bulk import methods that need connection details.
+func (m *Manager) SetConfig(cfg *config.Config) {
+	m.cfg = cfg
 }
 
 func getDriverName(dbType DBType) (string, error) {
@@ -434,6 +442,26 @@ func (m *Manager) DB() *sql.DB {
 // Type 返回数据库类型
 func (m *Manager) Type() DBType {
 	return m.dbType
+}
+
+// BulkInsert 使用数据库原生的最快方式执行批量导入。
+// 对于 Doris，传入 nil rows 和非 nil cfg — 使用 Stream Load 直接发送 Parquet 文件。
+// 对于其他数据库，rows 为必需参数。
+func (m *Manager) BulkInsert(tableName string, columns []string, rows []map[string]any, cfg *config.Config) error {
+	switch m.dbType {
+	case Doris:
+		return m.bulkInsertDoris(tableName, cfg)
+	case MySQL:
+		return m.bulkInsertMySQL(tableName, columns, rows)
+	case PostgreSQL:
+		return m.bulkInsertPostgreSQL(tableName, columns, rows)
+	case Oracle:
+		return m.bulkInsertOracle(tableName, columns, rows)
+	case SQLite:
+		return m.bulkInsertSQLite(tableName, columns, rows)
+	default:
+		return m.InsertData(tableName, columns, rows)
+	}
 }
 
 // normalizeValue 将空字符串转换为 nil，以便正确处理 JSON 等类型字段
