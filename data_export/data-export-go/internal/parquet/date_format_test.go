@@ -121,35 +121,40 @@ func TestDateFormatInference(t *testing.T) {
 	assert.NotNil(t, node)
 }
 
-func TestConvertRowForDateFormat(t *testing.T) {
+func TestConvertRowToMatchSchema(t *testing.T) {
 	testTime := time.Date(2024, 3, 15, 10, 30, 0, 0, time.UTC)
 	expectedISO := testTime.Format(time.RFC3339)
 	expectedDefaultString := testTime.Format("2006-01-02 15:04:05")
 	expectedCustomString := testTime.Format("2006-01-02")
 
-	// Test with unix format - should not convert
-	w := &parquetWriter{
-		config: Config{DateFormat: DateFormatUnix},
-	}
 	row := map[string]interface{}{
 		"id":         1,
 		"created_at": testTime,
 	}
-	converted := w.convertRowForDateFormat(row)
-	assert.Equal(t, testTime, converted["created_at"])
+
+	// Test with unix format - should convert time.Time to int64
+	w := &parquetWriter{
+		config:            Config{DateFormat: DateFormatUnix},
+		columnTargetTypes: map[string]string{"id": "INT64", "created_at": "INT64"},
+	}
+	converted := w.convertRowToMatchSchema(row)
+	assert.Equal(t, testTime.UnixMilli(), converted["created_at"])
+	assert.Equal(t, int64(1), converted["id"])
 
 	// Test with iso format - should convert to RFC3339 string
 	w = &parquetWriter{
-		config: Config{DateFormat: DateFormatISO},
+		config:            Config{DateFormat: DateFormatISO},
+		columnTargetTypes: map[string]string{"id": "INT64", "created_at": "STRING"},
 	}
-	converted = w.convertRowForDateFormat(row)
+	converted = w.convertRowToMatchSchema(row)
 	assert.Equal(t, expectedISO, converted["created_at"])
 
 	// Test with string format (default layout) - should use SQL datetime format
 	w = &parquetWriter{
-		config: Config{DateFormat: DateFormatString},
+		config:            Config{DateFormat: DateFormatString},
+		columnTargetTypes: map[string]string{"id": "INT64", "created_at": "STRING"},
 	}
-	converted = w.convertRowForDateFormat(row)
+	converted = w.convertRowToMatchSchema(row)
 	assert.Equal(t, expectedDefaultString, converted["created_at"])
 
 	// Test with string format (custom layout)
@@ -158,7 +163,32 @@ func TestConvertRowForDateFormat(t *testing.T) {
 			DateFormat:     DateFormatString,
 			DateTimeLayout: "2006-01-02",
 		},
+		columnTargetTypes: map[string]string{"id": "INT64", "created_at": "STRING"},
 	}
-	converted = w.convertRowForDateFormat(row)
+	converted = w.convertRowToMatchSchema(row)
 	assert.Equal(t, expectedCustomString, converted["created_at"])
+
+	// Test type mismatch: schema says STRING but value is int64
+	w = &parquetWriter{
+		config:            Config{DateFormat: DateFormatUnix},
+		columnTargetTypes: map[string]string{"id": "STRING", "created_at": "STRING"},
+	}
+	mismatchRow := map[string]interface{}{
+		"id":         int64(42),
+		"created_at": int64(1710498600000),
+	}
+	converted = w.convertRowToMatchSchema(mismatchRow)
+	assert.Equal(t, "42", converted["id"])
+	assert.Equal(t, "1710498600000", converted["created_at"])
+
+	// Test type mismatch: schema says INT64 but value is string
+	w = &parquetWriter{
+		config:            Config{DateFormat: DateFormatUnix},
+		columnTargetTypes: map[string]string{"id": "INT64"},
+	}
+	mismatchRow2 := map[string]interface{}{
+		"id": "123",
+	}
+	converted = w.convertRowToMatchSchema(mismatchRow2)
+	assert.Equal(t, int64(123), converted["id"])
 }

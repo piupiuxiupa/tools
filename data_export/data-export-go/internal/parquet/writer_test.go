@@ -45,7 +45,7 @@ func TestNewWriterDefaults(t *testing.T) {
 	// Access internal writer to check defaults
 	pw := writer.(*parquetWriter)
 	assert.Equal(t, "snappy", pw.config.Compression)
-	assert.Equal(t, 10000, pw.config.BatchSize)
+	assert.Equal(t, 0, pw.config.BatchSize)
 	assert.Equal(t, "export", pw.config.TableName)
 
 	err = writer.Close()
@@ -533,13 +533,13 @@ func TestInferType(t *testing.T) {
 		expected string
 	}{
 		{"int", int(1), "INT64"},
-		{"int8", int8(1), "INT64"},
-		{"int16", int16(1), "INT64"},
+		{"int8", int8(1), "INT32"},
+		{"int16", int16(1), "INT32"},
 		{"int32", int32(1), "INT64"},
 		{"int64", int64(1), "INT64"},
 		{"uint", uint(1), "INT64"},
-		{"uint8", uint8(1), "INT64"},
-		{"uint16", uint16(1), "INT64"},
+		{"uint8", uint8(1), "INT32"},
+		{"uint16", uint16(1), "INT32"},
 		{"uint32", uint32(1), "INT64"},
 		{"uint64", uint64(1), "INT64"},
 		{"float32", float32(1.5), "DOUBLE"},

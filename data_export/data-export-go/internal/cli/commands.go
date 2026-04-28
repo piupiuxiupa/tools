@@ -142,8 +142,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create database connection
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	connectCtx, connectCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer connectCancel()
 
 	dbTypeParsed, err := database.ParseDBType(dbType)
 	if err != nil {
@@ -160,7 +160,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 
 	connManager := database.NewConnectionManager(dbConfig)
-	db, err := connManager.Connect(ctx)
+	db, err := connManager.Connect(connectCtx)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -171,7 +171,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 	queryExecutor := query.NewExecutor(db)
 
 	// Get table metadata
-	meta, err := metadataService.GetTableMetadata(ctx, dbName, tableName)
+	meta, err := metadataService.GetTableMetadata(connectCtx, dbName, tableName)
 	if err != nil {
 		return fmt.Errorf("failed to get table metadata: %w", err)
 	}
@@ -192,7 +192,7 @@ func runExport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Perform export
+	// Perform export (no timeout — large tables may take a long time)
 	orchestrator := export.NewOrchestrator(db, metadataService, queryExecutor)
 	exportOpts := export.Options{
 		Database:       dbName,
@@ -205,8 +205,8 @@ func runExport(cmd *cobra.Command, args []string) error {
 		DateFormat:     dateFormat,
 		DateTimeLayout: dateTimeLayout,
 	}
-
-	result, err := orchestrator.Export(ctx, exportOpts)
+	exportCtx := context.Background()
+	result, err := orchestrator.Export(exportCtx, exportOpts)
 	if err != nil {
 		return fmt.Errorf("export failed: %w", err)
 	}

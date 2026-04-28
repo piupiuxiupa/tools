@@ -50,15 +50,16 @@ type FileInfo struct {
 }
 
 type parquetWriter struct {
-	config   Config
-	file     *os.File
-	writer   *parquet.Writer
-	schema   *parquet.Schema
-	columns  []string
-	fileInfo FileInfo
-	batchNum int
-	mu       sync.Mutex
-	closed   bool
+	config            Config
+	file              *os.File
+	writer            *parquet.Writer
+	schema            *parquet.Schema
+	columns           []string
+	columnTargetTypes map[string]string // inferred target Go type per column
+	fileInfo          FileInfo
+	batchNum          int
+	mu                sync.Mutex
+	closed            bool
 }
 
 // NewWriter creates a new Parquet writer
@@ -132,10 +133,12 @@ func (w *parquetWriter) initializeWriter(columns []string, sampleRow map[string]
 	}
 
 	group := make(parquet.Group)
+	w.columnTargetTypes = make(map[string]string, len(columns))
 	for _, col := range columns {
 		value := sampleRow[col]
 		node := inferParquetNode(value, w.config.DateFormat)
 		group[col] = node
+		w.columnTargetTypes[col] = inferTargetType(value, w.config.DateFormat)
 	}
 
 	schema := parquet.NewSchema("record", group)
@@ -194,6 +197,169 @@ func inferDateTimeNode(dateFormat DateFormat) parquet.Node {
 	}
 }
 
+func inferTargetType(value interface{}, dateFormat DateFormat) string {
+	if value == nil {
+		return "STRING"
+	}
+	switch value.(type) {
+	case int8, int16, uint8, uint16:
+		return "INT32"
+	case int, int32, int64, uint, uint32, uint64:
+		return "INT64"
+	case float32, float64:
+		return "DOUBLE"
+	case string:
+		return "STRING"
+	case bool:
+		return "BOOLEAN"
+	case time.Time:
+		switch dateFormat {
+		case DateFormatISO, DateFormatString:
+			return "STRING"
+		default:
+			return "INT64"
+		}
+	default:
+		return "STRING"
+	}
+}
+
+func convertValueToTarget(value interface{}, targetType string, config Config) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	switch targetType {
+	case "INT64":
+		switch v := value.(type) {
+		case int64:
+			return v
+		case int:
+			return int64(v)
+		case int32:
+			return int64(v)
+		case uint:
+			return int64(v)
+		case uint32:
+			return int64(v)
+		case uint64:
+			return int64(v)
+		case float64:
+			return int64(v)
+		case float32:
+			return int64(v)
+		case string:
+			var result int64
+			if _, err := fmt.Sscanf(v, "%d", &result); err == nil {
+				return result
+			}
+			return int64(0)
+		case time.Time:
+			return v.UnixMilli()
+		default:
+			return int64(0)
+		}
+	case "INT32":
+		switch v := value.(type) {
+		case int32:
+			return v
+		case int:
+			return int32(v)
+		case int64:
+			return int32(v)
+		case int8:
+			return int32(v)
+		case int16:
+			return int32(v)
+		case uint8:
+			return int32(v)
+		case uint16:
+			return int32(v)
+		case float64:
+			return int32(v)
+		case string:
+			var result int32
+			if _, err := fmt.Sscanf(v, "%d", &result); err == nil {
+				return result
+			}
+			return int32(0)
+		default:
+			return int32(0)
+		}
+	case "DOUBLE":
+		switch v := value.(type) {
+		case float64:
+			return v
+		case float32:
+			return float64(v)
+		case int:
+			return float64(v)
+		case int64:
+			return float64(v)
+		case string:
+			var result float64
+			if _, err := fmt.Sscanf(v, "%f", &result); err == nil {
+				return result
+			}
+			return float64(0)
+		default:
+			return float64(0)
+		}
+	case "STRING":
+		switch v := value.(type) {
+		case string:
+			return v
+		case time.Time:
+			layout := getDateTimeLayout(config)
+			return v.Format(layout)
+		default:
+			return fmt.Sprintf("%v", v)
+		}
+	case "BOOLEAN":
+		switch v := value.(type) {
+		case bool:
+			return v
+		case int:
+			return v != 0
+		case int64:
+			return v != 0
+		case string:
+			return v == "true" || v == "1" || v == "TRUE"
+		default:
+			return false
+		}
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
+func getDateTimeLayout(config Config) string {
+	switch config.DateFormat {
+	case DateFormatISO:
+		return time.RFC3339
+	case DateFormatString:
+		if config.DateTimeLayout != "" {
+			return config.DateTimeLayout
+		}
+		return "2006-01-02 15:04:05"
+	default:
+		return time.RFC3339
+	}
+}
+
+func (w *parquetWriter) convertRowToMatchSchema(row map[string]interface{}) map[string]interface{} {
+	converted := make(map[string]interface{}, len(row))
+	for k, v := range row {
+		targetType, ok := w.columnTargetTypes[k]
+		if !ok {
+			converted[k] = v
+			continue
+		}
+		converted[k] = convertValueToTarget(v, targetType, w.config)
+	}
+	return converted
+}
+
 func getCompressionCodec(name string) compress.Codec {
 	switch name {
 	case "snappy":
@@ -234,7 +400,7 @@ func (w *parquetWriter) WriteRows(rows []map[string]interface{}) error {
 	}
 
 	for _, row := range rows {
-		convertedRow := w.convertRowForDateFormat(row)
+		convertedRow := w.convertRowToMatchSchema(row)
 		parquetRow := w.schema.Deconstruct(nil, convertedRow)
 		if _, err := w.writer.WriteRows([]parquet.Row{parquetRow}); err != nil {
 			return fmt.Errorf("failed to write row: %w", err)
@@ -245,36 +411,6 @@ func (w *parquetWriter) WriteRows(rows []map[string]interface{}) error {
 	return nil
 }
 
-func (w *parquetWriter) convertRowForDateFormat(row map[string]interface{}) map[string]interface{} {
-	if w.config.DateFormat == DateFormatISO || w.config.DateFormat == DateFormatString {
-		converted := make(map[string]interface{}, len(row))
-		for k, v := range row {
-			if t, ok := v.(time.Time); ok {
-				layout := w.getDateTimeLayout()
-				converted[k] = t.Format(layout)
-			} else {
-				converted[k] = v
-			}
-		}
-		return converted
-	}
-	return row
-}
-
-func (w *parquetWriter) getDateTimeLayout() string {
-	switch w.config.DateFormat {
-	case DateFormatISO:
-		return time.RFC3339
-	case DateFormatString:
-		if w.config.DateTimeLayout != "" {
-			return w.config.DateTimeLayout
-		}
-		// Default to common SQL datetime format
-		return "2006-01-02 15:04:05"
-	default:
-		return time.RFC3339
-	}
-}
 
 func (w *parquetWriter) closeCurrentFile() error {
 	if w.writer != nil {
